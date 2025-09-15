@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "Agapesprings",
+    "slug": "Agapesprings",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "agape",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "remote-notification",
+          "audio",
+          "remote-notification"
+        ]
+      },
+      "bundleIdentifier": "com.maestro-effect.agapesprings"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": false,
+      "package": "com.maestro_effect.agapesprings",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "NOTIFICATIONS"
+      ],
+      "useNextNotificationsApi": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-audio",
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "675bb1e3-e37f-469a-bb18-a989cd5f0b73"
+      }
+    },
+    "owner": "maestro_effect"
+  }
+}
