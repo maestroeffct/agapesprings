@@ -1,3 +1,4 @@
+import Loading from "@/components/Loading"; // 👈 import your Loading component
 import ProgressBar from "@/components/ProgressBar";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import TopBar from "@/components/Topbar";
@@ -45,15 +46,30 @@ export default function AboutUsScreen() {
       </View>
 
       {/* WebView content */}
-      <WebView
-        source={{ uri: "https://www.agapespringsint.com/about" }}
-        style={styles.webview}
-        onLoadProgress={handleProgress}
-      />
+      <View style={{ flex: 1 }}>
+        <WebView
+          source={{ uri: "https://www.agapespringsint.com/about" }}
+          style={styles.webview}
+          onLoadProgress={handleProgress}
+        />
+
+        {/* ✅ Centered loader overlay */}
+        {visible && (
+          <View style={styles.loadingOverlay}>
+            <Loading size="large" />
+          </View>
+        )}
+      </View>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
   webview: { flex: 1 },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject, // full overlay
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.1)", // 👈 slight dim (optional)
+  },
 });

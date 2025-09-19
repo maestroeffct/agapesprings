@@ -1,6 +1,6 @@
 // components/AnimatedCard.tsx
 import { useTheme } from "@/store/ThemeContext";
-import React from "react";
+import React, { ReactNode } from "react";
 import {
   Image,
   ImageSourcePropType,
@@ -11,10 +11,10 @@ import {
 } from "react-native";
 
 type AnimatedCardProps = {
-  image: string | number;
+  image: string | number | ReactNode; // 👈 now accepts ExpoImage or ReactNode
   title: string;
   onPress?: () => void;
-  shouldAnimate: boolean; // kept for API compatibility
+  shouldAnimate: boolean;
   width?: number;
   height?: number;
   overlayImage?: ImageSourcePropType;
@@ -33,10 +33,7 @@ const AnimatedCard = ({
 }: AnimatedCardProps) => {
   const { colors, isDark } = useTheme();
 
-  const src =
-    typeof image === "string" && image
-      ? { uri: image }
-      : (image as number) || require("@/assets/images/screen1.png");
+  const isReactNode = React.isValidElement(image);
 
   return (
     <View style={[styles.cardOuter, { width }]}>
@@ -46,14 +43,27 @@ const AnimatedCard = ({
             styles.imageWrap,
             {
               height,
-              backgroundColor: colors.card, // theme-aware placeholder behind image
+              backgroundColor: colors.card,
               borderColor: isDark
                 ? "rgba(255,255,255,0.08)"
                 : "rgba(0,0,0,0.06)",
             },
           ]}
         >
-          <Image source={src} style={styles.image} resizeMode="cover" />
+          {isReactNode ? (
+            image // 👈 render ExpoImage (or any element) directly
+          ) : (
+            <Image
+              source={
+                typeof image === "string" && image
+                  ? { uri: image }
+                  : (image as number) || require("@/assets/images/screen1.png")
+              }
+              style={styles.image}
+              resizeMode="cover"
+            />
+          )}
+
           {overlayImage ? (
             <Image
               source={overlayImage}

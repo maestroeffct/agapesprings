@@ -83,6 +83,7 @@ export default function RootLayout() {
 
   const segments = useSegments();
   const hideMini = [
+    "(drawer)",
     "audio-player",
     "queue",
     "index",

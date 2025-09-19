@@ -26,16 +26,18 @@ const ThemeCtx = createContext<Ctx | null>(null);
 const KEY = "app.theme.v1";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeName, setThemeName] = useState<ThemeName>("system");
+  const [themeName, setThemeName] = useState<ThemeName>("light"); 
   const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
     Appearance.getColorScheme()
   );
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((saved) => {
-      if (saved === "light" || saved === "dark" || saved === "system")
+      if (saved === "light" || saved === "dark" || saved === "system") {
         setThemeName(saved);
+      }
     });
+
     const sub = Appearance.addChangeListener(({ colorScheme }) =>
       setSystemScheme(colorScheme)
     );
@@ -51,8 +53,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeName(name);
     await AsyncStorage.setItem(KEY, name);
   };
+
   const toggleTheme = async () =>
-    setTheme(await (async () => (isDark ? "light" : "dark"))());
+    setTheme(isDark ? "light" : "dark");
 
   const value = useMemo(
     () => ({ themeName, systemScheme, colors, isDark, setTheme, toggleTheme }),
