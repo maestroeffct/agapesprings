@@ -73,6 +73,7 @@ export const lightColors = {
   subtitle: "#4B5563",
   card: "#f9fafb",
   white: "#ffffff",
+  border: "#e5e7eb",
 };
 
 export const darkColors = {
@@ -82,4 +83,5 @@ export const darkColors = {
   subtitle: "#9ca3af",
   card: "#1f2937",
   white: "#ffffff",
+  border: "#374151",
 };

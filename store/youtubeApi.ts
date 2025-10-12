@@ -1,3 +1,4 @@
+// store/youtubeApi.ts
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const API_KEY = "AIzaSyBxHACG4JGurUzoHPSLQgUv0NZTj-k-VQQ";
@@ -9,9 +10,12 @@ export const youtubeApi = createApi({
     baseUrl: "https://youtube.googleapis.com/youtube/v3/",
   }),
   endpoints: (builder) => ({
-    getVideos: builder.query<any, number>({
-      query: (maxResults) =>
-        `playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&key=${API_KEY}`,
+    getVideos: builder.query<any, { maxResults?: number; pageToken?: string }>({
+      query: ({ maxResults = 50, pageToken }) => {
+        let url = `playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&key=${API_KEY}`;
+        if (pageToken) url += `&pageToken=${pageToken}`;
+        return url;
+      },
     }),
   }),
 });

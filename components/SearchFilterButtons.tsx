@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TextInput,
   TextInputProps,
-  TouchableOpacity,
   View,
   ViewStyle,
 } from "react-native";
@@ -56,7 +55,7 @@ const SearchFilterBar = forwardRef<TextInput, Props>(function SearchFilterBar(
         />
       </View>
 
-      {showFilterButton && (
+      {/* {showFilterButton && (
         <TouchableOpacity
           onPress={onPressFilter}
           activeOpacity={0.8}
@@ -67,7 +66,7 @@ const SearchFilterBar = forwardRef<TextInput, Props>(function SearchFilterBar(
         >
           <Ionicons name="options-outline" size={18} color={colors.text} />
         </TouchableOpacity>
-      )}
+      )} */}
     </View>
   );
 });

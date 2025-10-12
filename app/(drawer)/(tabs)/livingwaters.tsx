@@ -1,27 +1,27 @@
+import { getAudioSermons } from "@/api/audio";
+import { getCategories } from "@/api/categories";
 import Header from "@/components/Header";
 import ScreenWrapper from "@/components/ScreenWrapper";
-import React, { useRef, useState } from "react";
+import { useTheme } from "@/store/ThemeContext";
+import { useGetVideosQuery } from "@/store/youtubeApi";
+import { Image as ExpoImage } from "expo-image";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  RefreshControl,
   StyleSheet,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
 
-// Tab pages
+// Tabs
 import AudioTab from "@/components/AudioTab";
-import CategoriesTab from "@/components/CategoriesTab";
-import OneSound from "@/components/OneSound";
 import VideoTab from "@/components/VideoTab";
 
-import { useTheme } from "@/store/ThemeContext";
-import { router } from "expo-router";
-
-const topTabs = ["Video", "Audio", "Categories", "OneSound Music"] as const;
+const topTabs = ["Video", "Audio Tapes"] as const;
 type TopTab = (typeof topTabs)[number];
 
 const UNDERLINE_H = 3;
@@ -35,7 +35,36 @@ export default function LivingWatersScreen() {
   const pagerRef = useRef<FlatList<TopTab> | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
-  // measure per tab (container + label widths)
+  const { refetch: refetchVideos, data: videos } = useGetVideosQuery(10);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([
+        refetchVideos(),
+        getAudioSermons(1, 5),
+        getCategories?.(),
+      ]);
+      console.log("✅ Living Waters refreshed");
+    } catch (e) {
+      console.warn("Refresh failed:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchVideos]);
+
+  // Prefetch thumbnails when switching tabs
+  useEffect(() => {
+    if (selectedTab === "Video" && videos?.items?.length) {
+      videos.items.forEach((v: any) => {
+        const url = v?.snippet?.thumbnails?.high?.url;
+        if (url) ExpoImage.prefetch(url);
+      });
+    }
+  }, [selectedTab, videos]);
+
+  // Tab underline math
   const [tabBoxes, setTabBoxes] = useState<{ x: number; w: number }[]>(
     Array(topTabs.length).fill({ x: 0, w: 0 })
   );
@@ -49,18 +78,9 @@ export default function LivingWatersScreen() {
 
   const handleTabPress = (t: TopTab) => {
     setSelectedTab(t);
-    pagerRef.current?.scrollToIndex({
-      index: indexFromTab(t),
-      animated: true,
-    });
+    pagerRef.current?.scrollToIndex({ index: indexFromTab(t), animated: true });
   };
 
-  const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const i = Math.round(e.nativeEvent.contentOffset.x / width);
-    setSelectedTab(tabFromIndex(i));
-  };
-
-  // underline math (stretchy)
   const ready = topTabs.every(
     (t, i) => tabBoxes[i]?.w > 0 && (labelWidths[t] ?? 0) > 0
   );
@@ -89,7 +109,6 @@ export default function LivingWatersScreen() {
       stretchInput.push(i * width);
       stretchLeftOut.push(labelLefts[i]);
       stretchWidthOut.push((labelWidths[topTabs[i]] as number) || 28);
-
       if (i < topTabs.length - 1) {
         stretchInput.push((i + 0.5) * width);
         stretchLeftOut.push(labelLefts[i]);
@@ -115,10 +134,9 @@ export default function LivingWatersScreen() {
       })
     : 0;
 
-  // theme-derived colors
   const BORDER = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
-  const INACTIVE = colors.subtitle; // dim label
-  const ACTIVE = colors.primary; // active label + underline
+  const INACTIVE = colors.subtitle;
+  const ACTIVE = colors.primary;
 
   return (
     <ScreenWrapper
@@ -130,7 +148,6 @@ export default function LivingWatersScreen() {
         rightIcons={[
           {
             name: "download-outline",
-            hasNotification: false,
             onPress: () => router.push("/downloads"),
           },
         ]}
@@ -144,7 +161,6 @@ export default function LivingWatersScreen() {
         ]}
       >
         {topTabs.map((t, i) => {
-          // animated color to follow swipe
           const perTabInput = topTabs.map((_, j) => j * width);
           const activeAnim = scrollX.interpolate({
             inputRange: perTabInput,
@@ -160,10 +176,7 @@ export default function LivingWatersScreen() {
             <TouchableOpacity
               key={t}
               onPress={() => handleTabPress(t)}
-              style={[
-                styles.tabBtn,
-                i < topTabs.length - 1 && { marginRight: 16 },
-              ]}
+              style={styles.tabBtn}
               activeOpacity={0.8}
               onLayout={(e) => {
                 const { x, width: w } = e.nativeEvent.layout;
@@ -189,20 +202,21 @@ export default function LivingWatersScreen() {
             </TouchableOpacity>
           );
         })}
-
-        {/* Stretchy underline */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.activeUnderline,
-            { backgroundColor: ACTIVE },
-            ready ? { left: underlineLeft, width: underlineWidth } : null,
-          ]}
-        />
+        {ready && (
+          <Animated.View
+            style={[
+              styles.activeUnderline,
+              {
+                backgroundColor: ACTIVE,
+                left: underlineLeft,
+                width: underlineWidth,
+              },
+            ]}
+          />
+        )}
       </View>
 
       {/* Pager */}
-
       <Animated.FlatList
         ref={pagerRef}
         data={topTabs}
@@ -215,29 +229,42 @@ export default function LivingWatersScreen() {
             case "Video":
               return (
                 <View style={[styles.page, { width }]}>
-                  <VideoTab query={query} onChangeQuery={setQuery} />
-                </View>
-              );
-            case "Audio":
-              return (
-                <View style={[styles.page, { width }]}>
-                  <AudioTab />
-                </View>
-              );
-            case "Categories":
-              return (
-                <View style={[styles.page, { width }]}>
-                  <CategoriesTab
-                    onSelect={(cat) => console.log("Open:", cat.title)}
+                  <VideoTab
+                    query={query}
+                    onChangeQuery={setQuery}
+                    refreshControl={
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                      />
+                    }
                   />
                 </View>
               );
-            case "OneSound Music":
+            case "Audio Tapes":
               return (
                 <View style={[styles.page, { width }]}>
-                  <OneSound />
+                  <AudioTab refreshing={refreshing} onRefresh={onRefresh} />
                 </View>
               );
+            // case "Categories":
+            //   return (
+            //     <View style={[styles.page, { width }]}>
+            //       <CategoriesTab
+            //         onSelect={(cat) => console.log("Open:", cat.title)}
+            //         refreshControl={
+            //           <RefreshControl
+            //             refreshing={refreshing}
+            //             onRefresh={onRefresh}
+            //             colors={[colors.primary]}
+            //             tintColor={colors.primary}
+            //           />
+            //         }
+            //       />
+            //     </View>
+            //   );
           }
         }}
         onMomentumScrollEnd={(e) => {
@@ -262,17 +289,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     paddingHorizontal: 12,
     paddingBottom: UNDERLINE_H + 6,
-    justifyContent: "flex-start",
   },
-  tabBtn: { alignItems: "center", paddingHorizontal: 6 },
-  tabText: { fontSize: 14, fontWeight: "600" },
-
+  tabBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  tabText: { fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
   activeUnderline: {
     position: "absolute",
     bottom: -1,
     height: UNDERLINE_H,
-    borderRadius: 2,
+    borderRadius: 3,
   },
-
   page: { paddingHorizontal: 14, paddingTop: 10 },
 });

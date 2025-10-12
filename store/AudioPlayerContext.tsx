@@ -22,7 +22,11 @@ type PlayerCtx = {
   duration: number;
   queue: AudioItem[];
   queueIndex: number;
-  play: (item: AudioItem, queue?: AudioItem[]) => Promise<void>;
+  play: (
+    item: AudioItem,
+    queue?: AudioItem[],
+    opts?: { smooth?: boolean }
+  ) => Promise<void>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   stop: () => Promise<void>;
@@ -46,10 +50,9 @@ export function AudioPlayerProvider({
   const [current, setCurrent] = useState<AudioItem | undefined>();
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // ⏱ TrackPlayer progress hook
   const { position, duration } = useProgress();
 
-  // 🎧 Listen for state & track change events
+  // 🎧 React to player state changes
   useTrackPlayerEvents(
     [Event.PlaybackState, Event.PlaybackTrackChanged],
     async (event) => {
@@ -57,43 +60,79 @@ export function AudioPlayerProvider({
         setIsPlaying(event.state === State.Playing);
       }
       if (event.type === Event.PlaybackTrackChanged) {
-        if (event.nextTrack != null) {
-          const index = event.nextTrack;
-          setQueueIndex(index);
-          setCurrent(queue[index]);
-        } else {
-          setCurrent(undefined);
+        if (event.nextTrack != null && queue[event.nextTrack]) {
+          setQueueIndex(event.nextTrack);
+          setCurrent(queue[event.nextTrack]);
         }
       }
     }
   );
 
-  // 🟢 Play item (optionally with a full queue)
-  const play = async (item: AudioItem, q: AudioItem[] = [item]) => {
-    const tracks = q.map((t) => ({
-      id: t.id.toString(),
-      url: t.streamUrl || t.downloadUrl || "",
-      title: t.title,
-      artist: t.author || "Unknown Artist",
-      artwork: t.thumb,
-    }));
+  // 🟢 Smooth "play" logic
+  const play = async (
+    item: AudioItem,
+    q: AudioItem[] = [item],
+    opts?: { smooth?: boolean }
+  ) => {
+    try {
+      const activeId = (await TrackPlayer.getActiveTrack())?.id?.toString?.();
+      const sameTrack = activeId === item.id.toString();
 
-    await TrackPlayer.reset();
-    await TrackPlayer.add(tracks);
-    const idx = q.findIndex((x) => x.id === item.id) || 0;
-    await TrackPlayer.skip(idx);
-    await TrackPlayer.play();
+      // No need to re-add if already playing this item
+      if (sameTrack) {
+        await TrackPlayer.play();
+        return;
+      }
 
-    setQueue(q);
-    setQueueIndex(idx);
-    setCurrent(item);
+      const sameQueue =
+        q.length === queue.length &&
+        q.every((track, i) => track.id === queue[i]?.id);
+
+      if (!sameQueue) {
+        await TrackPlayer.reset();
+        const tracks = q.map((t) => ({
+          id: t.id.toString(),
+          url: t.streamUrl || t.downloadUrl || "",
+          title: t.title,
+          artist: t.author || "Unknown Artist",
+          artwork: t.thumb,
+        }));
+        await TrackPlayer.add(tracks);
+        setQueue(q);
+      } else if (opts?.smooth) {
+        // Stop but don't reset, for smooth transition
+        await TrackPlayer.stop();
+      } else {
+        await TrackPlayer.reset();
+        const tracks = q.map((t) => ({
+          id: t.id.toString(),
+          url: t.streamUrl || t.downloadUrl || "",
+          title: t.title,
+          artist: t.author || "Unknown Artist",
+          artwork: t.thumb,
+        }));
+        await TrackPlayer.add(tracks);
+      }
+
+      const idx = q.findIndex((x) => x.id === item.id) || 0;
+      await TrackPlayer.skip(idx);
+      await TrackPlayer.play();
+
+      setQueueIndex(idx);
+      setCurrent(item);
+    } catch (e) {
+      console.warn("Error in play():", e);
+    }
   };
 
   const pause = async () => TrackPlayer.pause();
   const resume = async () => TrackPlayer.play();
+
   const stop = async () => {
-    await TrackPlayer.stop();
-    await TrackPlayer.reset();
+    try {
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+    } catch {}
     setCurrent(undefined);
     setQueue([]);
     setQueueIndex(0);
@@ -146,8 +185,8 @@ export function AudioPlayerProvider({
         toggle,
         skipToNext,
         skipToPrevious,
-        setQueue, // 👈 exposed
-        setQueueIndex, // 👈 exposed
+        setQueue,
+        setQueueIndex,
       }}
     >
       {children}

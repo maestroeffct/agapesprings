@@ -33,7 +33,7 @@ const slides = [
     key: "2",
     title: "PROFITING",
     subtitle: "Our Lifestyle",
-    image: require("@/assets/images/screen2.png"),
+    image: require("@/assets/images/onboard2'.webp"),
   },
   {
     key: "3",
@@ -187,11 +187,7 @@ const Onboarding = () => {
   };
 
   return (
-    <ScreenWrapper
-      statusBarColor="transparent"
-      barStyle="light-content"
-      style={{ backgroundColor: colors.background }}
-    >
+    <ScreenWrapper noPadding>
       <FlatList
         ref={flatListRef}
         data={slides}
@@ -221,7 +217,7 @@ const styles = StyleSheet.create({
   },
   skip: {
     position: "absolute",
-    top: 20,
+    top: 70,
     right: 20,
     zIndex: 2,
   },

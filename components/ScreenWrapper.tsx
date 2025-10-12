@@ -29,12 +29,12 @@ export default function ScreenWrapper({
     <View
       style={[
         { paddingTop: padTop, flex: 1 },
-        { backgroundColor: colors.background }, // default
-        style, // ✅ custom override (e.g. transparent)
+        { backgroundColor: colors.background },
+        style,
       ]}
     >
       <StatusBar
-        translucent // ✅ allows background to show
+        translucent
         backgroundColor={statusBarColor ?? "transparent"}
         barStyle={_barStyle}
       />

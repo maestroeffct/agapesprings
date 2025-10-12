@@ -8,14 +8,16 @@ type Props = {
   query: string;
   onChangeQuery: (q: string) => void;
   onSelectVideo?: (item: any) => void;
+  refreshControl?: React.ReactNode;
 };
 
 export default function VideoTab({
   query,
   onChangeQuery,
   onSelectVideo,
+  refreshControl,
 }: Props) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <View style={{ backgroundColor: colors.background, flex: 1 }}>
@@ -26,8 +28,11 @@ export default function VideoTab({
         onPressFilter={() => {}}
       />
 
-      {/* Video List */}
-      <VideosList query={query} onSelect={onSelectVideo} />
+      <VideosList
+        query={query}
+        onSelect={onSelectVideo}
+        refreshControl={refreshControl}
+      />
     </View>
   );
 }

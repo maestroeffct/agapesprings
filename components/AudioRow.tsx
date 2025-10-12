@@ -1,4 +1,3 @@
-// components/AudioRow.tsx
 import { colors as staticColors } from "@/constants/theme";
 import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useDownloads } from "@/store/download";
@@ -6,8 +5,8 @@ import { useTheme } from "@/store/ThemeContext";
 import type { AudioItem } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, usePathname } from "expo-router";
+import React, { useEffect } from "react";
 import {
   ActionSheetIOS,
   Platform,
@@ -26,8 +25,14 @@ type Props = {
   fullList: AudioItem[];
   onDownload?: (it: AudioItem) => void;
   onShare?: (it: AudioItem) => void;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  closeMenu: () => void;
 };
 
+const PLACEHOLDER = require("@/assets/images/aud2.png");
+
+// 🔹 helper for pretty date
 const formatDate = (iso?: string) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -40,46 +45,49 @@ const formatDate = (iso?: string) => {
 
 export default function AudioRow({
   item,
-  index,
   fullList,
   onDownload,
   onShare,
+  menuOpen,
+  onToggleMenu,
+  closeMenu,
 }: Props) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const { current, play } = useAudioPlayer();
   const { colors, themeName } = useTheme();
   const { isDownloaded, getProgress } = useDownloads();
+  const pathname = usePathname();
 
   const progress = getProgress(item.id);
   const downloaded = isDownloaded(item.id);
   const downloading = progress > 0 && progress < 1;
 
-  const startDownload = () => {
-    if (onDownload) onDownload(item);
-  };
+  // ✅ Prefetch image once to disk cache for next reloads
+  useEffect(() => {
+    if (item.thumb && typeof item.thumb === "object" && item.thumb.uri) {
+      ExpoImage.prefetch(item.thumb.uri).catch(() => {});
+    }
+  }, [item.thumb]);
+
   const onRowPress = async () => {
     const isSame = current && String(current.id) === String(item.id);
     if (isSame) {
-      router.push("/audio-player");
+      if (!pathname?.includes("/audio-player")) router.push("/audio-player");
       return;
     }
 
-    // ✅ play the full queue, starting from this index
-    await play(item, fullList);
-
-    router.push("/audio-player");
+    // Play smoothly (no mini-player flicker)
+    await play(item, fullList, { smooth: true });
+    if (!pathname?.includes("/audio-player")) router.push("/audio-player");
   };
 
   const handleShare = () => {
     const link = item.downloadUrl || item.streamUrl || "";
     const text = link ? `${item.title}\n\n${link}` : item.title;
-    if (Platform.OS === "ios") {
-      Share.share({ title: item.title, message: text, url: link }).catch(
-        () => {}
-      );
-    } else {
-      Share.share({ message: text }).catch(() => {});
-    }
+    Share.share(
+      Platform.OS === "ios"
+        ? { title: item.title, message: text, url: link }
+        : { message: text }
+    ).catch(() => {});
   };
 
   const openMenu = () => {
@@ -91,12 +99,12 @@ export default function AudioRow({
           userInterfaceStyle: themeName === "dark" ? "dark" : "light",
         },
         (idx) => {
-          if (idx === 1) onDownload ? onDownload(item) : null;
+          if (idx === 1) onDownload?.(item);
           if (idx === 2) onShare ? onShare(item) : handleShare();
         }
       );
     } else {
-      setMenuOpen((v) => !v);
+      onToggleMenu();
     }
   };
 
@@ -108,11 +116,13 @@ export default function AudioRow({
         style={styles.row}
       >
         <ExpoImage
-          source={item.thumb}
-          style={[styles.thumb, { backgroundColor: colors.card }]}
+          source={item.thumb || PLACEHOLDER}
+          placeholder={PLACEHOLDER}
+          placeholderContentFit="cover"
           contentFit="cover"
-          transition={150}
-          cachePolicy="disk"
+          transition={200}
+          cachePolicy="disk" // ✅ keeps image cached between reloads
+          style={[styles.thumb, { backgroundColor: colors.card }]}
         />
 
         <View style={styles.mid}>
@@ -154,7 +164,7 @@ export default function AudioRow({
         <View style={styles.rightBtns}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={startDownload}
+            onPress={() => onDownload?.(item)}
             disabled={downloading || downloaded}
           >
             {downloading ? (
@@ -182,7 +192,6 @@ export default function AudioRow({
           <TouchableOpacity
             style={[styles.iconBtn, { marginLeft: 6 }]}
             onPress={openMenu}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons
               name="ellipsis-vertical"
@@ -193,28 +202,20 @@ export default function AudioRow({
         </View>
       </TouchableOpacity>
 
-      {/* Android dropdown */}
       {menuOpen && Platform.OS !== "ios" && (
         <>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setMenuOpen(false)}
-          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
           <View
             style={[
               styles.menu,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.subtitle,
-                shadowColor: colors.text,
-              },
+              { backgroundColor: colors.card, borderColor: colors.subtitle },
             ]}
           >
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
-                setMenuOpen(false);
-                onDownload ? onDownload(item) : null;
+                closeMenu();
+                onDownload?.(item);
               }}
             >
               <Ionicons name="download-outline" size={16} color={colors.text} />
@@ -225,7 +226,7 @@ export default function AudioRow({
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
-                setMenuOpen(false);
+                closeMenu();
                 onShare ? onShare(item) : handleShare();
               }}
             >
@@ -249,12 +250,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingRight: 2,
   },
-  thumb: {
-    width: 65,
-    height: 65,
-    borderRadius: 8,
-    marginRight: 8,
-  },
+  thumb: { width: 65, height: 65, borderRadius: 8, marginRight: 8 },
   mid: { flex: 1, paddingRight: 8 },
   title: { fontSize: 14, fontWeight: "600", marginBottom: 6 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -273,21 +269,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: 2,
   },
-  iconBtn: {
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 4,
-  },
+  iconBtn: { justifyContent: "center", alignItems: "center", padding: 4 },
   progressText: {
-    position: "absolute", // ✅ overlay text inside same box
+    position: "absolute",
     fontSize: 10,
     fontWeight: "600",
-    color: "#007bff", // or colors.primary
+    color: "#007bff",
     padding: 20,
   },
-  // iconBtn: { padding: 4, borderRadius: 8 },
-
-  // android popup
   menu: {
     position: "absolute",
     zIndex: 9999,
@@ -297,10 +286,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 6,
     minWidth: 140,
-    elevation: 6,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   menuItem: {
     flexDirection: "row",

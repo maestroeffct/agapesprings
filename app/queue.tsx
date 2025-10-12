@@ -3,15 +3,13 @@ import TopBar from "@/components/Topbar";
 import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo } from "react";
 import {
-  ImageBackground,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+  Image as ExpoImage,
+  ImageBackground as ExpoImageBackground,
+} from "expo-image";
+import { router } from "expo-router";
+import React, { useEffect, useMemo } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import DraggableFlatList, {
   RenderItemParams,
 } from "react-native-draggable-flatlist";
@@ -21,20 +19,30 @@ export default function QueueScreen() {
   const { colors } = useTheme();
   const { queue, queueIndex, play, setQueue, current } = useAudioPlayer();
 
-  const cover = useMemo(
-    () => current?.thumb || require("@/assets/images/aud1.png"),
-    [current?.thumb]
-  );
+  // ✅ Cached, memoized artwork
+  const cover = useMemo(() => {
+    if (!current?.thumb) return require("@/assets/images/aud1.png");
+    return typeof current.thumb === "string"
+      ? { uri: current.thumb }
+      : current.thumb;
+  }, [current?.thumb]);
+
+  // ✅ Prefetch queue thumbnails for instant image loads
+  useEffect(() => {
+    if (queue?.length) {
+      queue.forEach((item) => {
+        if (item.thumb) ExpoImage.prefetch(item.thumb);
+      });
+    }
+  }, [queue]);
 
   const removeTrack = async (id: string | number) => {
     const index = queue.findIndex((q) => q.id === id);
     if (index === -1) return;
-
     const updated = queue.filter((q) => q.id !== id);
     setQueue(updated);
-
     try {
-      await TrackPlayer.remove([index]); // remove by index
+      await TrackPlayer.remove([index]);
     } catch (e) {
       console.warn("Track remove failed:", e);
     }
@@ -42,7 +50,6 @@ export default function QueueScreen() {
 
   const reorderQueue = async (newQueue: typeof queue) => {
     setQueue(newQueue);
-
     try {
       await TrackPlayer.reset();
       await TrackPlayer.add(
@@ -60,64 +67,54 @@ export default function QueueScreen() {
   };
 
   const goBackSafe = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/audio-player"); // fallback to player
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace("/audio-player");
   };
 
   return (
     <ScreenWrapper
-      style={{ backgroundColor: "transparent" }} // ✅ transparent wrapper
-      statusBarColor="transparent" // ✅ transparent status bar to match
-      barStyle="light-content" // ✅ ensure icons are visible on dark bg
+      style={{ backgroundColor: "transparent" }}
+      statusBarColor="transparent"
+      barStyle="light-content"
     >
-      {/* ✅ Same blurred artwork background */}
-      <ImageBackground
+      {/* ✅ Cached blurred artwork background */}
+      <ExpoImageBackground
         source={cover}
+        blurRadius={4}
         style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-        blurRadius={2}
-        imageStyle={{ transform: [{ scale: 1.45 }] }}
+        contentFit="cover"
+        cachePolicy="disk"
       >
         <View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: "rgba(0,0,0,0.25)" },
+            { backgroundColor: "rgba(0,0,0,0.3)" },
           ]}
         />
-      </ImageBackground>
+      </ExpoImageBackground>
 
       {/* TopBar */}
       <TopBar
-        title="Now Playing"
+        title="Play Queue"
         titleColor={colors.white}
         leftIcons={[
-          {
-            name: "arrow-back",
-            onPress: goBackSafe,
-            color: colors.white,
-          },
+          { name: "arrow-back", onPress: goBackSafe, color: colors.white },
         ]}
       />
 
-      {/* Draggable queue list */}
+      {/* Queue list */}
       <DraggableFlatList
         data={queue}
         keyExtractor={(it) => String(it.id)}
         contentContainerStyle={{ padding: 12, paddingBottom: 80 }}
         onDragEnd={({ data }) => {
-          // ✅ 1. Update UI immediately
           if (JSON.stringify(data) !== JSON.stringify(queue)) {
             setQueue(data);
+            reorderQueue(data);
           }
-
-          // ✅ 2. Only touch TrackPlayer if the current item moved
           if (current) {
             const newIndex = data.findIndex((t) => t.id === current.id);
             if (newIndex !== -1 && newIndex !== queueIndex) {
-              // Small delay prevents race conditions & UI blink
               setTimeout(() => {
                 TrackPlayer.skip(newIndex).catch(() => {});
               }, 50);
@@ -130,20 +127,20 @@ export default function QueueScreen() {
           drag,
         }: RenderItemParams<(typeof queue)[0]>) => {
           const index = getIndex?.() ?? -1;
+          const isActive = index === queueIndex;
 
           return (
             <TouchableOpacity
               style={[
                 styles.queueItem,
                 {
-                  backgroundColor:
-                    index === queueIndex
-                      ? "rgba(255,255,255,0.15)"
-                      : "transparent",
+                  backgroundColor: isActive
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.05)",
                 },
               ]}
               onLongPress={drag}
-              delayLongPress={120}
+              delayLongPress={100}
               onPress={() => play(item, queue)}
             >
               <Ionicons
@@ -166,7 +163,9 @@ export default function QueueScreen() {
                   {item.author ?? "Unknown"}
                 </Text>
               </View>
+
               <TouchableOpacity
+                accessibilityLabel="Remove from queue"
                 onPressIn={(e) => e.stopPropagation()}
                 onPress={() => removeTrack(item.id)}
               >

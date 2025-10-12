@@ -3,9 +3,17 @@ import { ThemeModalProvider } from "@/components/ThemeModalHost";
 import service from "@/service"; // 👈 make sure the path is correct
 import { store } from "@/store";
 import { AudioPlayerProvider } from "@/store/AudioPlayerContext";
+import { NotificationProvider } from "@/store/NotificationContext";
 import { registerForPushNotificationsAsync } from "@/store/notificationService";
 import { ThemeProvider } from "@/store/ThemeContext";
 import { VideoProvider } from "@/store/VideoContext";
+import {
+  preloadDevotionals,
+  preloadDrawerScreens,
+  preloadHome,
+  preloadLivingwaters,
+  preloadNotifications,
+} from "@/utils/preload";
 import * as Linking from "expo-linking";
 import { Stack, useRouter, useSegments } from "expo-router";
 import React, { useEffect } from "react";
@@ -19,6 +27,16 @@ import { Provider } from "react-redux";
 // register once
 TrackPlayer.registerPlaybackService(() => service);
 export default function RootLayout() {
+  useEffect(() => {
+    // fire and forget – no blocking
+    preloadHome();
+    preloadDevotionals();
+    preloadNotifications();
+    preloadLivingwaters();
+    preloadDevotionals();
+    preloadDrawerScreens();
+  }, []);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -81,19 +99,34 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
+  // const segments = useSegments();
+  // const hideMini = [
+  //   "(drawer)",
+  //   "audio-player",
+  //   "queue",
+  //   "downloads",
+  //   "aboutus",
+  //   "give",
+  //   "settings",
+  //   "share",
+  //   "platform",
+  //   "/video",
+  // ].includes(segments[0]);
   const segments = useSegments();
+  const lastSegment = segments[segments.length - 1]; // Get the actual screen
   const hideMini = [
-    "(drawer)",
     "audio-player",
     "queue",
-    "index",
     "downloads",
+    "(drawer)",
     "aboutus",
     "give",
     "settings",
     "share",
     "platform",
-  ].includes(segments[0]);
+    "/video",
+    "CustomDrawer",
+  ].includes(lastSegment);
 
   useEffect(() => {
     registerForPushNotificationsAsync();
@@ -106,15 +139,17 @@ export default function RootLayout() {
           <Provider store={store}>
             <VideoProvider>
               <AudioPlayerProvider>
-                <Stack
-                  initialRouteName="(drawer)"
-                  screenOptions={{ headerShown: false }}
-                >
-                  <Stack.Screen
-                    name="(drawer)"
-                    options={{ headerShown: false }}
-                  />
-                </Stack>
+                <NotificationProvider>
+                  <Stack
+                    initialRouteName="(drawer)"
+                    screenOptions={{ headerShown: false }}
+                  >
+                    <Stack.Screen
+                      name="(drawer)"
+                      options={{ headerShown: false }}
+                    />
+                  </Stack>
+                </NotificationProvider>
                 {!hideMini && <MiniAudioPlayer />}
               </AudioPlayerProvider>
             </VideoProvider>

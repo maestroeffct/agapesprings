@@ -1,8 +1,8 @@
 import { useTheme } from "@/store/ThemeContext";
+import { Image as ExpoImage } from "expo-image";
 import React from "react";
 import {
   FlatList,
-  ImageBackground,
   RefreshControl,
   StyleSheet,
   Text,
@@ -10,9 +10,7 @@ import {
   View,
 } from "react-native";
 import Loading from "./Loading";
-import SearchFilterBar from "./SearchFilterButtons";
 
-// Use the API type instead of a custom one
 export type Devotional = {
   id: number;
   timePosted: string;
@@ -43,23 +41,21 @@ const formatDevoDate = (iso: string) => {
 };
 
 const imgFallback = require("@/assets/images/devo.jpg");
+const imgEmpty = require("@/assets/images/devo.jpg"); // 👈 show when no favourites
 
 type Props = {
-  query: string;
-  setQuery: (v: string) => void;
   data: Devotional[];
   favIds?: number[];
-  onToggleFave?: (id: number) => void;
+  onToggleFave?: (id: number, devo: Devotional) => void; // <— changed
   onPressItem?: (item: Devotional) => void;
   onEndReached?: () => void;
   loadingMore?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
+  emptyMessage?: string;
 };
 
 export default function DevoImagesGrid({
-  query,
-  setQuery,
   data,
   favIds = [],
   onToggleFave,
@@ -68,121 +64,56 @@ export default function DevoImagesGrid({
   loadingMore = false,
   refreshing = false,
   onRefresh,
+  emptyMessage = "No devotionals yet.",
 }: Props) {
   const { colors } = useTheme();
 
-  const featured = data.find((d) => d.featured);
   const rest = data.filter((d) => !d.featured);
 
   return (
-    <View>
-      <SearchFilterBar
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search devotionals..."
-        onPressFilter={() => {}}
-      />
-
-      <FlatList
-        numColumns={2}
-        data={rest}
-        keyExtractor={(it) => String(it.id)}
-        ListHeaderComponent={
-          featured ? (
-            <>
-              <HeroCard
-                item={featured}
-                onPressItem={onPressItem}
-                favIds={favIds}
-                onToggleFave={onToggleFave}
-              />
-              <View
-                style={[styles.separator, { backgroundColor: colors.subtitle }]}
-              />
-            </>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <GridCard
-            item={item}
-            onPressItem={onPressItem}
-            favIds={favIds}
-            onToggleFave={onToggleFave}
-          />
-        )}
-        columnWrapperStyle={styles.columnWrapper}
-        contentContainerStyle={styles.gridContent}
-        showsVerticalScrollIndicator={false}
-        onEndReachedThreshold={0.4}
-        onEndReached={onEndReached}
-        ListFooterComponent={
-          loadingMore ? (
-            <Loading size={20} style={{ marginVertical: 12 }} />
-          ) : null
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]} // Android
-            tintColor={colors.primary} // iOS
-          />
-        }
-      />
-    </View>
+    <FlatList
+      numColumns={2}
+      data={rest}
+      keyExtractor={(it) => String(it.id)}
+      renderItem={({ item }) => (
+        <GridCard
+          item={item}
+          onPressItem={onPressItem}
+          favIds={favIds}
+          onToggleFave={onToggleFave}
+        />
+      )}
+      columnWrapperStyle={styles.columnWrapper}
+      contentContainerStyle={[
+        styles.gridContent,
+        rest.length === 0 && { flexGrow: 1, justifyContent: "center" },
+      ]}
+      showsVerticalScrollIndicator={false}
+      onEndReachedThreshold={0.4}
+      onEndReached={onEndReached}
+      // ListEmptyComponent={
+      //   <View style={styles.emptyWrap}>
+      //     <Loading size={40} />
+      //   </View>
+      // }
+      ListFooterComponent={
+        loadingMore ? (
+          <Loading size={20} style={{ marginVertical: 12 }} />
+        ) : null
+      }
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]} // Android
+          tintColor={colors.primary} // iOS
+        />
+      }
+    />
   );
 }
 
 /* ---------- cards ---------- */
-function HeroCard({
-  item,
-  favIds,
-  onToggleFave,
-  onPressItem,
-}: {
-  item: Devotional;
-  favIds?: number[];
-  onToggleFave?: (id: number) => void;
-  onPressItem?: (it: Devotional) => void;
-}) {
-  const { colors } = useTheme();
-  const isFav = favIds?.includes(item.id);
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() =>
-        onPressItem ? onPressItem(item) : console.log("Open", item.id)
-      }
-    >
-      <ImageBackground
-        source={item.headerUrl ? { uri: item.headerUrl } : imgFallback}
-        style={[styles.cardBg, styles.heroRatio]}
-        imageStyle={styles.cardImg}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
-        <View style={styles.topRow}>
-          <Pill>{formatDevoDate(item.timePosted)}</Pill>
-          {onToggleFave && (
-            <TouchableOpacity onPress={() => onToggleFave(item.id)}>
-              <Text style={{ color: isFav ? "red" : "gray" }}>
-                {isFav ? "♥" : "♡"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ImageBackground>
-
-      <Text
-        style={[styles.heroTitle, { color: colors.text }]}
-        numberOfLines={2}
-      >
-        {`Devotional ${item.id}`}
-      </Text>
-    </TouchableOpacity>
-  );
-}
 
 function GridCard({
   item,
@@ -192,10 +123,9 @@ function GridCard({
 }: {
   item: Devotional;
   favIds?: number[];
-  onToggleFave?: (id: number) => void;
+  onToggleFave?: (id: number, devo: Devotional) => void; // <— changed
   onPressItem?: (it: Devotional) => void;
 }) {
-  const { colors } = useTheme();
   const isFav = favIds?.includes(item.id);
 
   return (
@@ -206,31 +136,32 @@ function GridCard({
         onPressItem ? onPressItem(item) : console.log("Open", item.id)
       }
     >
-      <ImageBackground
-        source={item.headerUrl ? { uri: item.headerUrl } : imgFallback}
-        style={[styles.cardBg, styles.gridRatio]}
-        imageStyle={styles.cardImg}
-        resizeMode="cover"
-      >
+      <View style={[styles.cardBg, styles.gridRatio]}>
+        <ExpoImage
+          source={item.headerUrl ? { uri: item.headerUrl } : imgFallback}
+          placeholder={imgFallback}
+          placeholderContentFit="cover"
+          style={[StyleSheet.absoluteFill, styles.cardImg]}
+          contentFit="cover"
+          transition={300}
+          cachePolicy="disk"
+        />
+
+        {/* Overlay */}
         <View style={styles.overlay} />
+
+        {/* Top row: date + fave */}
         <View style={styles.topRow}>
           <Pill>{formatDevoDate(item.timePosted)}</Pill>
           {onToggleFave && (
-            <TouchableOpacity onPress={() => onToggleFave(item.id)}>
+            <TouchableOpacity onPress={() => onToggleFave(item.id, item)}>
               <Text style={{ color: isFav ? "red" : "gray" }}>
                 {isFav ? "♥" : "♡"}
               </Text>
             </TouchableOpacity>
           )}
         </View>
-      </ImageBackground>
-
-      <Text
-        style={[styles.gridTitle, { color: colors.text }]}
-        numberOfLines={2}
-      >
-        {`Devotional ${item.id}`}
-      </Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -306,4 +237,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     marginVertical: 14,
   },
+
+  emptyWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyImg: { width: 160, height: 160, marginBottom: 12 },
+  emptyText: { fontSize: 14, fontWeight: "600" },
 });

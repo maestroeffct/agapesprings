@@ -1,14 +1,14 @@
-// components/VideoComponent.tsx
 import { useTheme } from "@/store/ThemeContext";
 import { useVideo } from "@/store/VideoContext";
 import { useGetVideosQuery } from "@/store/youtubeApi";
+import { loadCache, saveCache } from "@/utils/cache";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -29,36 +29,11 @@ type Props = {
 const YT_ID_RE = /[A-Za-z0-9_-]{11}/;
 const getVideoId = (v: any): string | undefined => {
   if (!v) return;
-  if (
-    v?.snippet?.resourceId?.videoId &&
-    YT_ID_RE.test(v.snippet.resourceId.videoId)
-  ) {
+  if (v?.snippet?.resourceId?.videoId && YT_ID_RE.test(v.snippet.resourceId.videoId))
     return v.snippet.resourceId.videoId;
-  }
-  if (v?.contentDetails?.videoId && YT_ID_RE.test(v.contentDetails.videoId)) {
+  if (v?.contentDetails?.videoId && YT_ID_RE.test(v.contentDetails.videoId))
     return v.contentDetails.videoId;
-  }
-  if (v?.id?.videoId && YT_ID_RE.test(v.id.videoId)) {
-    return v.id.videoId;
-  }
-  const candidates: string[] = [];
-  if (typeof v?.id === "string") candidates.push(v.id);
-  if (typeof v?.snippet?.videoUrl === "string")
-    candidates.push(v.snippet.videoUrl);
-  if (typeof v?.snippet?.url === "string") candidates.push(v.snippet.url);
-  for (const s of candidates) {
-    const token = s.match(YT_ID_RE)?.[0];
-    if (token) return token;
-  }
-  const t =
-    v?.snippet?.thumbnails?.maxres?.url ||
-    v?.snippet?.thumbnails?.high?.url ||
-    v?.snippet?.thumbnails?.medium?.url ||
-    v?.snippet?.thumbnails?.default?.url;
-  if (typeof t === "string") {
-    const m = t.match(/\/vi(?:_webp)?\/([A-Za-z0-9_-]{11})\//);
-    if (m?.[1]) return m[1];
-  }
+  if (v?.id?.videoId && YT_ID_RE.test(v.id.videoId)) return v.id.videoId;
   return undefined;
 };
 
@@ -75,23 +50,48 @@ const formatDate = (iso?: string) => {
 };
 
 export default function VideoComponent({ item, onClose, onSelect }: Props) {
-  const { data, isLoading, isError } = useGetVideosQuery(90);
-  const { setVideoId } = useVideo();
   const { colors, isDark } = useTheme();
+  const { setVideoId } = useVideo();
 
   const currentId = getVideoId(item);
   const [openMeta, setOpenMeta] = useState(false);
+
+  // Local state for full list
+  const [allVideos, setAllVideos] = useState<any[]>([]);
+  const [pageToken, setPageToken] = useState<string | undefined>(undefined);
+
+  const { data, isLoading, isError, isFetching } = useGetVideosQuery(
+    { maxResults: 50, pageToken },
+    { skip: pageToken === null }
+  );
+
+  // load cached on mount
+  useEffect(() => {
+    (async () => {
+      const cached = await loadCache<any[]>("videosCache", []);
+      if (cached.length) setAllVideos(cached);
+    })();
+  }, []);
+
+  // add new data to state + cache
+  useEffect(() => {
+    if (data?.items) {
+      setAllVideos((prev) => {
+        const merged = [...prev, ...data.items];
+        saveCache("videosCache", merged);
+        return merged;
+      });
+      setPageToken(data.nextPageToken ?? null);
+    }
+  }, [data]);
 
   useEffect(() => {
     if (currentId) setVideoId(currentId);
   }, [currentId]);
 
   const related = useMemo(() => {
-    const all = data?.items ?? [];
-    return all
-      .filter((v: any) => getVideoId(v) && getVideoId(v) !== currentId)
-      .slice(0, 100);
-  }, [data, currentId]);
+    return allVideos.filter((v) => getVideoId(v) && getVideoId(v) !== currentId);
+  }, [allVideos, currentId]);
 
   return (
     <ScreenWrapper
@@ -105,10 +105,7 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
           <TouchableOpacity onPress={onClose} style={styles.backHit}>
             <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
-          <Text
-            style={[styles.topTitle, { color: colors.text }]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.topTitle, { color: colors.text }]} numberOfLines={1}>
             {item?.snippet?.title || "Video"}
           </Text>
           <View style={{ width: 22 }} />
@@ -165,20 +162,29 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
           data={related}
           keyExtractor={(v, i) => `${getVideoId(v) ?? "rel"}-${i}`}
           contentContainerStyle={{ paddingBottom: 28 }}
+          onEndReached={() => {
+            if (pageToken && !isFetching) setPageToken(pageToken);
+          }}
+          onEndReachedThreshold={0.4}
           renderItem={({ item: v }) => {
             const vthumb =
               v?.snippet?.thumbnails?.high?.url ||
               v?.snippet?.thumbnails?.medium?.url;
+
             return (
               <TouchableOpacity
                 onPress={() => onSelect(v)}
                 activeOpacity={0.8}
                 style={styles.row}
               >
-                <Image
-                  source={{ uri: vthumb }}
-                  resizeMode="cover"
+                <ExpoImage
+                  source={vthumb ? { uri: vthumb } : require("@/assets/images/event4.png")}
+                  placeholder={require("@/assets/images/event4.png")}
+                  placeholderContentFit="cover"
                   style={styles.rowThumb}
+                  contentFit="cover"
+                  transition={300}
+                  cachePolicy="disk"
                 />
                 <View style={styles.rowRight}>
                   <Text
@@ -200,10 +206,7 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
                 Related
               </Text>
               {isLoading && (
-                <ActivityIndicator
-                  style={{ marginVertical: 12 }}
-                  color={colors.primary}
-                />
+                <ActivityIndicator style={{ marginVertical: 12 }} color={colors.primary} />
               )}
               {isError && (
                 <Text style={[styles.error, { color: colors.primary }]}>
@@ -211,6 +214,9 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
                 </Text>
               )}
             </>
+          }
+          ListFooterComponent={
+            isFetching ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null
           }
           showsVerticalScrollIndicator={false}
         />

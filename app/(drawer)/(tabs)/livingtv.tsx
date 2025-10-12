@@ -1,70 +1,168 @@
-// import { ThemedText } from "@/components/ThemedText";
-// import { useState } from "react";
-// import { ScrollView, TouchableOpacity } from "react-native";
-// import { Platform, SafeAreaView, View } from "react-native";
-// import Web from "../../components/Web";
-// import { Feather } from "@expo/vector-icons";
-// import Radio from "../../components/Radio";
+// app/(tabs)/onesound.tsx
+import Header from "@/components/Header";
+import ScreenWrapper from "@/components/ScreenWrapper";
+import { useTheme } from "@/store/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
+import React, { useState } from "react";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-// export default function LivingScreen() {
-//   const [index, setIndex] = useState(0);
-//   return (
-//     <SafeAreaView>
-//       <View className={`p-4 ${Platform.OS == "android" && "pt-12 pb-4 px-4"}`}>
-//         <View className="flex-row items-center justify-end">
-//           <View className="relative">
-//             <Feather name="share-2" size={20} color="black" />
-//           </View>
-//         </View>
-//       </View>
+const PLACEHOLDER = require("@/assets/images/aud1.png"); // 🎵 placeholder image
 
-//       <View className="px-4 flex justify-center relative z-50 items-center bg-[#e9e9e9] h-[40px]">
-//         <View className="flex flex-row items-center gap-x-3 w-[90%] h-[30px]">
-//           <TouchableOpacity
-//             className={`w-[45%] flex justify-center items-center ${
-//               index == 0 && "bg-[#A60A0A]"
-//             } h-full rounded-[5px]`}
-//             onPress={() => setIndex(0)}
-//           >
-//             <ThemedText
-//               className={`${index == 0 && "text-white"} text-[12px] font-[600]`}
-//             >
-//               Web
-//             </ThemedText>
-//           </TouchableOpacity>
-//           <TouchableOpacity
-//             className={`w-[45%] flex justify-center items-center ${
-//               index == 1 && "bg-[#A60A0A]"
-//             } h-full rounded-[5px]`}
-//             onPress={() => setIndex(1)}
-//           >
-//             <ThemedText
-//               className={`${index == 1 && "text-white"} text-[12px] font-[600]`}
-//             >
-//               Radio
-//             </ThemedText>
-//           </TouchableOpacity>
-//         </View>
-//       </View>
-
-//       <ScrollView className="w-full h-[80vh]">
-//         {index == 0 ? <Web /> : <Radio />}
-//       </ScrollView>
-//     </SafeAreaView>
-//   );
-// }
-
-import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-
-const livingtv = () => {
-  return (
-    <View>
-      <Text>livingtv</Text>
-    </View>
-  );
+type Song = {
+  id: string;
+  title: string;
+  artist: string;
+  thumb?: string;
 };
 
-export default livingtv;
+const dummySongs: Song[] = [
+  {
+    id: "1",
+    title: "You Are Great",
+    artist: "Agape Choir",
+    thumb: "https://picsum.photos/200/200?1",
+  },
+  {
+    id: "2",
+    title: "Holy Spirit Fire",
+    artist: "Agape Voices",
+    thumb: "https://picsum.photos/200/200?2",
+  },
+  {
+    id: "3",
+    title: "Living Waters Flow",
+    artist: "Praise Team",
+    thumb: "https://picsum.photos/200/200?3",
+  },
+];
 
-const styles = StyleSheet.create({});
+export default function OneSoundScreen() {
+  const { colors, isDark } = useTheme();
+  const [songs] = useState<Song[]>(dummySongs);
+
+  const renderItem = ({ item }: { item: Song }) => (
+    <View style={styles.row}>
+      <ExpoImage
+        source={item.thumb ? { uri: item.thumb } : PLACEHOLDER}
+        placeholder={PLACEHOLDER}
+        style={styles.thumb}
+        contentFit="cover"
+        transition={200}
+      />
+      <View style={styles.info}>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text
+          style={[styles.artist, { color: colors.subtitle }]}
+          numberOfLines={1}
+        >
+          {item.artist}
+        </Text>
+      </View>
+      {/* Action buttons */}
+      <View style={styles.actions}>
+        <TouchableOpacity activeOpacity={0.7}>
+          <Ionicons
+            name="play-circle-outline"
+            size={26}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7}>
+          <Ionicons
+            name="download-outline"
+            size={22}
+            color={colors.subtitle}
+            style={{ marginLeft: 12 }}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <ScreenWrapper
+      style={{ backgroundColor: colors.background }}
+      statusBarColor={colors.background}
+      barStyle={isDark ? "light-content" : "dark-content"}
+    >
+      <Header
+        title="OneSound"
+        rightIcons={[
+          {
+            name: "download-outline",
+            hasNotification: false,
+            onPress: () => console.log("Go to downloads"),
+          },
+        ]}
+      />
+
+      {songs.length > 0 ? (
+        <FlatList
+          data={songs}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingVertical: 12 }}
+          ItemSeparatorComponent={() => (
+            <View
+              style={[
+                styles.separator,
+                { backgroundColor: colors.subtitle },
+              ]}
+            />
+          )}
+        />
+      ) : (
+        <View style={styles.center}>
+          <Ionicons
+            name="musical-notes-outline"
+            size={42}
+            color={colors.subtitle}
+          />
+          <Text style={[styles.empty, { color: colors.subtitle }]}>
+            No songs yet
+          </Text>
+        </View>
+      )}
+    </ScreenWrapper>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  thumb: {
+    width: 58,
+    height: 58,
+    borderRadius: 8,
+    backgroundColor: "#ccc",
+  },
+  info: { flex: 1 },
+  title: { fontSize: 15, fontWeight: "600" },
+  artist: { fontSize: 13, marginTop: 2 },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  separator: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  empty: { fontSize: 14, fontWeight: "500" },
+});

@@ -1,28 +1,36 @@
-import Loading from "@/components/Loading"; // 👈 import your Loading component
+import Loading from "@/components/Loading";
 import ProgressBar from "@/components/ProgressBar";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import TopBar from "@/components/Topbar";
 import { useTheme } from "@/store/ThemeContext";
+import { getCachedPage, urls } from "@/utils/prefetchWebPages";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
-export default function GiveScreen() {
+export default function AboutUsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [cachedHtml, setCachedHtml] = useState<string | null>(null);
 
   const handleProgress = (event: any) => {
-    const value = event.nativeEvent.progress; // 0 → 1
+    const value = event.nativeEvent.progress;
     setProgress(value);
     setVisible(true);
     if (value === 1) {
       setTimeout(() => setVisible(false), 400);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      const html = await getCachedPage("give");
+      if (html) setCachedHtml(html);
+    })();
+  }, []);
 
   return (
     <ScreenWrapper
@@ -32,7 +40,6 @@ export default function GiveScreen() {
         colors.background === "#111827" ? "light-content" : "dark-content"
       }
     >
-      {/* ✅ Header with back + progress */}
       <View>
         <TopBar
           title="Give"
@@ -45,15 +52,16 @@ export default function GiveScreen() {
         />
       </View>
 
-      {/* ✅ WebView content + Loader */}
       <View style={{ flex: 1 }}>
         <WebView
-          source={{ uri: "https://www.agapespringsint.com/giving" }}
+          source={
+            cachedHtml
+              ? { html: cachedHtml, baseUrl: urls.give }
+              : { uri: urls.give }
+          }
           style={styles.webview}
           onLoadProgress={handleProgress}
         />
-
-        {/* Centered loader overlay */}
         {visible && (
           <View style={styles.loadingOverlay}>
             <Loading size="large" />
@@ -70,6 +78,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.1)", // 👈 dim effect (optional)
+    backgroundColor: "rgba(0,0,0,0.1)",
   },
 });

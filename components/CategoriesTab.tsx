@@ -23,6 +23,7 @@ type CategoryItem = {
 
 type Props = {
   onSelect?: (cat: CategoryItem) => void;
+  refreshControl?: React.ReactNode;
 };
 
 const CATEGORIES: CategoryItem[] = [

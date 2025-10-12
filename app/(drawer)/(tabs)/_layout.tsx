@@ -1,4 +1,4 @@
-// app/(drawer)/(tabs)/_layout.tsx (or wherever your TabLayout lives)
+// app/(drawer)/(tabs)/_layout.tsx
 import { useTheme } from "@/store/ThemeContext";
 import type { BottomTabNavigationOptions } from "@react-navigation/bottom-tabs";
 import { Tabs } from "expo-router";
@@ -20,8 +20,8 @@ const icons = {
     inactive: require("@/assets/images/devotional.png"),
   },
   livingtv: {
-    active: require("@/assets/images/livetv-active.png"),
-    inactive: require("@/assets/images/livetv.png"),
+    active: require("@/assets/images/onesound.png"),
+    inactive: require("@/assets/images/onesound1.png"),
   },
 } as const;
 
@@ -29,7 +29,7 @@ const tabConfig = {
   index: "Home",
   livingwaters: "Livingwaters",
   devotional: "Devotional",
-  livingtv: "Living Stream",
+  livingtv: "OneSound",
 } as const;
 
 type TabKey = keyof typeof tabConfig;
@@ -41,10 +41,10 @@ export default function TabLayout() {
   const commonTabOptions: BottomTabNavigationOptions = {
     headerShown: false,
     tabBarActiveTintColor: colors.primary,
-    tabBarInactiveTintColor: colors.subtitle, // theme-aware label color
+    tabBarInactiveTintColor: colors.subtitle,
     tabBarLabelStyle: { fontWeight: "bold" },
     tabBarStyle: {
-      backgroundColor: colors.card, // 👈 theme-aware background
+      backgroundColor: colors.card,
       borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
       borderTopWidth: StyleSheet.hairlineWidth,
       paddingBottom: Math.max(insets.bottom, 8),
@@ -59,6 +59,7 @@ export default function TabLayout() {
         {children}
       </TouchableOpacity>
     ),
+    animation: "fade",
   };
 
   return (

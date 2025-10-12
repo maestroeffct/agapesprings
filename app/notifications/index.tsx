@@ -1,15 +1,11 @@
 // app/notifications/index.tsx
-import { getNotifications, NotificationItem } from "@/api/notifications";
-import Loading from "@/components/Loading";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import TopBar from "@/components/Topbar";
-import { useTheme } from "@/store/ThemeContext";
+import { useNotifications } from "@/store/NotificationContext";
 import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Image,
-  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,71 +13,24 @@ import {
 } from "react-native";
 
 export default function NotificationsScreen() {
-  const { colors } = useTheme();
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    try {
-      if (!refreshing) setLoading(true);
-      const data = await getNotifications();
-      setNotifications(data);
-      setError(null);
-    } catch (err: any) {
-      setError("Failed to load notifications");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [refreshing]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  const { notifications } = useNotifications();
 
   return (
     <ScreenWrapper>
       <TopBar
         title="Updates"
         leftIcons={[
-          {
-            name: "arrow-back",
-            onPress: () => router.back(),
-            color: colors.text,
-          },
+          { name: "arrow-back", onPress: () => router.back(), color: "#000" },
         ]}
       />
-
-      {loading && !refreshing && <Loading size="large" />}
-      {error && !loading && (
-        <Text style={{ color: "red", padding: 16 }}>{error}</Text>
-      )}
 
       <FlatList
         data={notifications}
         keyExtractor={(item) => String(item.id)}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.item}
-            onPress={() => console.log("Tapped:", item.title)}
-          >
-            {item.image ? (
-              <Image source={{ uri: item.image }} style={styles.thumb} />
+          <TouchableOpacity style={styles.item}>
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
             ) : (
               <Image
                 source={require("@/assets/images/aud1.png")}
@@ -89,15 +38,11 @@ export default function NotificationsScreen() {
               />
             )}
             <View style={styles.textBlock}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {item.title}
-              </Text>
-              {item.excerpt ? (
-                <Text style={styles.excerpt} numberOfLines={2}>
-                  {item.excerpt}
-                </Text>
-              ) : null}
-              <Text style={styles.date}>{item.date}</Text>
+              <Text style={styles.title}>{item.title}</Text>
+              {item.message && (
+                <Text style={styles.excerpt}>{item.message}</Text>
+              )}
+              <Text style={styles.date}>{item.createdAt}</Text>
             </View>
           </TouchableOpacity>
         )}

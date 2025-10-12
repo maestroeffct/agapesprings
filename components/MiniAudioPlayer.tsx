@@ -1,12 +1,11 @@
-// components/MiniAudioPlayer.tsx
 import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import { router, usePathname } from "expo-router";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -39,34 +38,60 @@ export default function MiniAudioPlayer() {
   const isAudioPlayerScreen = pathname?.includes("/audio-player");
 
   const y = useRef(new Animated.Value(80)).current;
+  const progress = useRef(new Animated.Value(0)).current;
+
+  const hasShown = useRef(false);
+
   useEffect(() => {
-    Animated.timing(y, {
-      toValue: current ? 0 : 80,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
+    if (current && !hasShown.current) {
+      hasShown.current = true;
+      Animated.timing(y, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    } else if (!current && hasShown.current) {
+      hasShown.current = false;
+      Animated.timing(y, {
+        toValue: 80,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [!!current]);
 
-  const cover = useMemo(
-    () => current?.thumb || require("@/assets/images/aud1.png"),
-    [current?.thumb]
-  );
-
   const pct = duration ? (position / duration) * 100 : 0;
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: pct,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+
+  const cover = useMemo(() => {
+    if (!current?.thumb) return require("@/assets/images/aud1.png");
+    return typeof current.thumb === "string"
+      ? { uri: current.thumb }
+      : current.thumb;
+  }, [current?.thumb]);
+
   const ended = duration > 0 && position >= duration - 750;
 
   const handlePlayPause = async () => {
-    if (isPlaying) {
-      await pause();
-    } else if (ended) {
+    if (isPlaying) await pause();
+    else if (ended) {
       await seekTo(0);
       await resume();
-    } else {
-      await resume();
-    }
+    } else await resume();
   };
 
   if (!current || isAudioPlayerScreen) return null;
+
+  const width = progress.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
 
   return (
     <Animated.View
@@ -84,14 +109,20 @@ export default function MiniAudioPlayer() {
         <View
           style={[styles.progressTrack, { backgroundColor: colors.subtitle }]}
         />
-        <View
+        <Animated.View
           style={[
             styles.progressFill,
-            { width: `${pct}%`, backgroundColor: colors.primary },
+            { backgroundColor: colors.primary, width },
           ]}
         />
 
-        <Image source={cover} style={styles.thumb} />
+        <ExpoImage
+          source={cover}
+          style={styles.thumb}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="disk"
+        />
 
         <TouchableOpacity
           style={styles.middle}
@@ -118,9 +149,9 @@ export default function MiniAudioPlayer() {
           </Text>
 
           <TouchableOpacity
+            accessibilityLabel={isPlaying ? "Pause audio" : "Play audio"}
             onPress={handlePlayPause}
             style={styles.iconHit}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons
               name={isPlaying ? "pause" : "play"}
@@ -129,7 +160,11 @@ export default function MiniAudioPlayer() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={stop} style={styles.iconHit}>
+          <TouchableOpacity
+            accessibilityLabel="Stop audio"
+            onPress={stop}
+            style={styles.iconHit}
+          >
             <Ionicons name="close" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -157,8 +192,8 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
   },
   progressTrack: {
     position: "absolute",

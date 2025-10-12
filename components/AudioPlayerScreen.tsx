@@ -4,11 +4,14 @@ import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
+import {
+  Image as ExpoImage,
+  ImageBackground as ExpoImageBackground,
+} from "expo-image";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image,
-  ImageBackground,
+  Animated,
   Platform,
   Share,
   StyleSheet,
@@ -43,13 +46,14 @@ export default function AudioPlayerScreen() {
   } = useAudioPlayer();
 
   const [playMode, setPlayMode] = useState<PlayMode>("all");
+  const scale = useRef(new Animated.Value(1)).current;
 
   const cyclePlayMode = () =>
     setPlayMode((m) =>
       m === "all" ? "shuffle" : m === "shuffle" ? "repeat" : "all"
     );
 
-  // auto-restart if repeat mode
+  // Auto-restart if repeat mode
   useEffect(() => {
     if (playMode !== "repeat" || !duration) return;
     const nearEnd = position >= duration - 250;
@@ -60,20 +64,42 @@ export default function AudioPlayerScreen() {
     }
   }, [position, duration, isPlaying, playMode, seekTo, resume]);
 
-  const cover = useMemo(
-    () => current?.thumb || require("@/assets/images/aud1.png"),
-    [current?.thumb]
-  );
-  const title = current?.title || "Now Playing";
-  const author = current?.author || "Unknown Author";
+  // Animate scale on play/pause
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: isPlaying ? 1 : 0.96,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  }, [isPlaying]);
 
-  // slider local state
+  // Memoize cover, title, and author
+  const { cover, title, author } = useMemo(
+    () => ({
+      cover:
+        current?.thumb && typeof current.thumb === "string"
+          ? { uri: current.thumb }
+          : current?.thumb || require("@/assets/images/aud1.png"),
+      title: current?.title || "Now Playing",
+      author: current?.author || "Unknown Author",
+    }),
+    [current]
+  );
+
+  // Prefetch next artwork for instant transitions
+  useEffect(() => {
+    const next = queue[queueIndex + 1];
+    if (next?.thumb) ExpoImage.prefetch(next.thumb);
+  }, [queueIndex, queue]);
+
+  // Slider local state
   const dragging = useRef(false);
   const [localPos, setLocalPos] = useState(0);
   useEffect(() => {
     if (!dragging.current) setLocalPos(position);
   }, [position]);
 
+  // Sharing handler
   const onShare = () => {
     const link = current?.downloadUrl || current?.streamUrl || "";
     const text = link ? `${title}\n\n${link}` : title;
@@ -89,17 +115,17 @@ export default function AudioPlayerScreen() {
 
   return (
     <ScreenWrapper
-      style={{ backgroundColor: "transparent" }} // ✅ wrapper doesn't override your bg
-      statusBarColor="transparent" // ✅ blends status bar into image
-      barStyle="light-content" // ✅ ensures white icons
+      style={{ backgroundColor: "transparent" }}
+      statusBarColor="transparent"
+      barStyle="light-content"
     >
       {/* Background */}
-      <ImageBackground
+      <ExpoImageBackground
         source={cover}
+        blurRadius={7}
         style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-        blurRadius={2}
-        imageStyle={{ transform: [{ scale: 1.45 }] }}
+        contentFit="cover"
+        cachePolicy="disk"
       >
         <View
           style={[
@@ -107,12 +133,12 @@ export default function AudioPlayerScreen() {
             { backgroundColor: "rgba(0,0,0,0.25)" },
           ]}
         />
-      </ImageBackground>
+      </ExpoImageBackground>
 
       {/* TopBar */}
       <TopBar
         title="Now Playing"
-        titleColor={colors.white} // ✅ white title
+        titleColor={colors.white}
         leftIcons={[
           {
             name: "arrow-back",
@@ -141,7 +167,16 @@ export default function AudioPlayerScreen() {
 
       {/* Artwork */}
       <View style={styles.artWrap}>
-        <Image source={cover} style={styles.art} />
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <ExpoImage
+            source={cover}
+            style={styles.art}
+            contentFit="cover"
+            transition={100}
+            cachePolicy="disk"
+            placeholder={require("@/assets/images/aud1.png")}
+          />
+        </Animated.View>
       </View>
 
       {/* Bottom panel */}
@@ -158,6 +193,7 @@ export default function AudioPlayerScreen() {
                   Math.max(0, (dragging.current ? localPos : position) - 15000)
                 )
               }
+              accessibilityLabel="Rewind 15 seconds"
             >
               <Ionicons name="play-back" size={22} color={colors.white} />
             </TouchableOpacity>
@@ -166,6 +202,7 @@ export default function AudioPlayerScreen() {
               style={styles.smlBtn}
               disabled={prevDisabled}
               onPress={skipToPrevious}
+              accessibilityLabel="Previous track"
             >
               <Ionicons
                 name="play-skip-back"
@@ -177,6 +214,7 @@ export default function AudioPlayerScreen() {
             <TouchableOpacity
               style={[styles.playBtn, { backgroundColor: colors.white }]}
               onPress={() => (isPlaying ? pause() : resume())}
+              accessibilityLabel={isPlaying ? "Pause" : "Play"}
             >
               <Ionicons
                 name={isPlaying ? "pause" : "play"}
@@ -189,6 +227,7 @@ export default function AudioPlayerScreen() {
               style={styles.smlBtn}
               disabled={nextDisabled}
               onPress={skipToNext}
+              accessibilityLabel="Next track"
             >
               <Ionicons
                 name="play-skip-forward"
@@ -207,6 +246,7 @@ export default function AudioPlayerScreen() {
                   )
                 )
               }
+              accessibilityLabel="Forward 15 seconds"
             >
               <Ionicons name="play-forward" size={22} color={colors.white} />
             </TouchableOpacity>
@@ -251,8 +291,8 @@ export default function AudioPlayerScreen() {
                   (playMode === "shuffle"
                     ? "shuffle"
                     : playMode === "repeat"
-                      ? "repeat"
-                      : "play-outline") as any
+                    ? "repeat"
+                    : "play-outline") as any
                 }
                 size={28}
                 color={
