@@ -4,6 +4,7 @@ import { colors } from "@/constants/theme";
 import { useVideoSermons } from "@/hooks/useVideoSermon";
 import { getBestThumb } from "@/utils/media";
 import { Image as ExpoImage } from "expo-image";
+import { router } from "expo-router";
 
 import { FlatList, Text, TouchableOpacity, View } from "react-native";
 
@@ -27,7 +28,7 @@ export default function VideoSection({
         >
           Latest Video Sermon
         </Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/video/all")}>
           <Text style={{ color: colors.primary }}>View all</Text>
         </TouchableOpacity>
       </View>
@@ -50,6 +51,8 @@ export default function VideoSection({
                   source={{ uri: getBestThumb(item.snippet.thumbnails) }}
                   style={{ flex: 1, borderRadius: 8 }}
                   contentFit="cover"
+                  placeholder={require("@/assets/images/vid_cover.png")}
+                  placeholderContentFit="cover"
                 />
               }
               title={item.snippet.title}

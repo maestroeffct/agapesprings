@@ -33,7 +33,7 @@ const slides = [
     key: "2",
     title: "PROFITING",
     subtitle: "Our Lifestyle",
-    image: require("@/assets/images/onboard2'.webp"),
+    image: require("@/assets/images/onboard2.jpeg"),
   },
   {
     key: "3",
@@ -100,7 +100,7 @@ const Onboarding = () => {
     const [first, second] = subtitle.split(" ");
     return (
       <>
-        {first} <Text style={{ color: colors.primary }}>{second}</Text>
+        {first} <Text style={{ color: colors.secondary }}>{second}</Text>
       </>
     );
   };
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 35,
-    fontWeight: "bold",
+    fontWeight: "900",
     marginBottom: 6,
     textTransform: "uppercase",
   },
@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginBottom: 20,
     textAlign: "center",
+    fontWeight: "700",
   },
   dotsContainer: {
     flexDirection: "row",

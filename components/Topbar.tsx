@@ -10,10 +10,13 @@ import {
   ViewStyle,
 } from "react-native";
 
+// components/TopBar.tsx
 export type TopBarIcon = {
   name: string;
   onPress: () => void;
   color?: string;
+  disabled?: boolean; // ✅ add this
+  title?: string; // optional tooltip/text
 };
 
 type Props = {
@@ -21,7 +24,7 @@ type Props = {
   leftIcons?: TopBarIcon[];
   rightIcons?: TopBarIcon[];
   rightGap?: number; // ✅ allow gap adjustment
-  titleColor?: string; // ✅ new prop
+  titleColor?: string;
 };
 
 export default function TopBar({
@@ -38,11 +41,18 @@ export default function TopBar({
       {/* Left Icons */}
       <View style={styles.side}>
         {leftIcons.map((icon, idx) => (
-          <TouchableOpacity key={idx} onPress={icon.onPress} style={styles.hit}>
+          <TouchableOpacity
+            key={idx}
+            onPress={icon.onPress}
+            style={styles.hit}
+            disabled={icon.disabled} // 🚀 respects disabled state
+          >
             <Ionicons
               name={icon.name as any}
               size={22}
-              color={icon.color || colors.text}
+              color={
+                icon.disabled ? colors.subtitle : icon.color || colors.text
+              } // dim if disabled
             />
           </TouchableOpacity>
         ))}
@@ -59,11 +69,18 @@ export default function TopBar({
       {/* Right Icons */}
       <View style={[styles.side, { columnGap: rightGap }]}>
         {rightIcons.map((icon, idx) => (
-          <TouchableOpacity key={idx} onPress={icon.onPress} style={styles.hit}>
+          <TouchableOpacity
+            key={idx}
+            onPress={icon.onPress}
+            style={styles.hit}
+            disabled={icon.disabled} // 🚀 respects disabled state
+          >
             <Ionicons
               name={icon.name as any}
               size={22}
-              color={icon.color || colors.text}
+              color={
+                icon.disabled ? colors.subtitle : icon.color || colors.text
+              } // dim if disabled
             />
           </TouchableOpacity>
         ))}

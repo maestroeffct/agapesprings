@@ -4,11 +4,13 @@ import { useDownloads } from "@/store/download";
 import { useTheme } from "@/store/ThemeContext";
 import type { AudioItem } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { Image as ExpoImage } from "expo-image";
 import { router, usePathname } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
   ActionSheetIOS,
+  Alert,
   Platform,
   Pressable,
   Share,
@@ -30,17 +32,20 @@ type Props = {
   closeMenu: () => void;
 };
 
-const PLACEHOLDER = require("@/assets/images/aud2.png");
+const PLACEHOLDER = require("@/assets/images/aud_message.png");
 
-// 🔹 helper for pretty date
 const formatDate = (iso?: string) => {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
 };
 
 export default function AudioRow({
@@ -54,30 +59,81 @@ export default function AudioRow({
 }: Props) {
   const { current, play } = useAudioPlayer();
   const { colors, themeName } = useTheme();
-  const { isDownloaded, getProgress } = useDownloads();
+  const { isDownloaded, getProgress, getLocalUri } = useDownloads();
   const pathname = usePathname();
 
   const progress = getProgress(item.id);
   const downloaded = isDownloaded(item.id);
   const downloading = progress > 0 && progress < 1;
 
-  // ✅ Prefetch image once to disk cache for next reloads
-  useEffect(() => {
-    if (item.thumb && typeof item.thumb === "object" && item.thumb.uri) {
-      ExpoImage.prefetch(item.thumb.uri).catch(() => {});
-    }
-  }, [item.thumb]);
-
   const onRowPress = async () => {
-    const isSame = current && String(current.id) === String(item.id);
-    if (isSame) {
-      if (!pathname?.includes("/audio-player")) router.push("/audio-player");
-      return;
-    }
+    try {
+      const localUri = getLocalUri(item.id);
 
-    // Play smoothly (no mini-player flicker)
-    await play(item, fullList, { smooth: true });
-    if (!pathname?.includes("/audio-player")) router.push("/audio-player");
+      // ✅ Determine correct URL (local or stream)
+      const uri =
+        localUri && localUri.startsWith("file://")
+          ? localUri
+          : localUri
+          ? `file://${localUri}`
+          : item.streamUrl;
+
+      if (!uri) {
+        Alert.alert("Playback error", "No valid file or stream URL found.");
+        return;
+      }
+
+      // ✅ Verify file existence if local
+      if (uri.startsWith("file://")) {
+        const info = await FileSystem.getInfoAsync(uri);
+        if (!info.exists) {
+          Alert.alert(
+            "Missing file",
+            "This downloaded audio file no longer exists."
+          );
+          return;
+        }
+      }
+
+      // ✅ Build clean queue with only valid URIs
+      const queue = fullList
+        .map((a) => {
+          const loc = getLocalUri(a.id);
+          const validUri = loc
+            ? loc.startsWith("file://")
+              ? loc
+              : `file://${loc}`
+            : a.streamUrl;
+          if (!validUri) return null;
+          return {
+            id: a.id,
+            title: a.title,
+            author: a.author || "Unknown Speaker",
+            streamUrl: validUri,
+            thumb: a.thumb || PLACEHOLDER,
+            sourceLabel: loc ? "Offline" : "Online",
+          };
+        })
+        .filter(Boolean) as AudioItem[];
+
+      await play(
+        {
+          id: item.id,
+          title: item.title,
+          author: item.author || "Unknown Speaker",
+          streamUrl: uri,
+          thumb: item.thumb || PLACEHOLDER,
+          sourceLabel: downloaded ? "Offline" : "Online",
+        },
+        queue,
+        { smooth: true }
+      );
+
+      if (!pathname?.includes("/audio-player")) router.push("/audio-player");
+    } catch (err) {
+      console.error("❌ Audio playback error:", err);
+      Alert.alert("Playback error", "Could not play this sermon.");
+    }
   };
 
   const handleShare = () => {
@@ -118,10 +174,10 @@ export default function AudioRow({
         <ExpoImage
           source={item.thumb || PLACEHOLDER}
           placeholder={PLACEHOLDER}
-          placeholderContentFit="cover"
           contentFit="cover"
-          transition={200}
-          cachePolicy="disk" // ✅ keeps image cached between reloads
+          transition={0}
+          cachePolicy="memory-disk"
+          recyclingKey={String(item.id)}
           style={[styles.thumb, { backgroundColor: colors.card }]}
         />
 
@@ -161,6 +217,7 @@ export default function AudioRow({
           </View>
         </View>
 
+        {/* ✅ Right Buttons */}
         <View style={styles.rightBtns}>
           <TouchableOpacity
             style={styles.iconBtn}
@@ -188,20 +245,10 @@ export default function AudioRow({
               />
             )}
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.iconBtn, { marginLeft: 6 }]}
-            onPress={openMenu}
-          >
-            <Ionicons
-              name="ellipsis-vertical"
-              size={18}
-              color={colors.subtitle}
-            />
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
 
+      {/* Android menu overlay */}
       {menuOpen && Platform.OS !== "ios" && (
         <>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />

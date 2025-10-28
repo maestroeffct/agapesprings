@@ -1,11 +1,13 @@
 import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Image as ExpoImage } from "expo-image";
 import { router, usePathname } from "expo-router";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,6 +21,15 @@ const fmt = (ms: number) => {
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
+
+// ✅ fallback for non-tab screens
+function useSafeTabBarHeight() {
+  try {
+    return useBottomTabBarHeight();
+  } catch {
+    return Platform.OS === "ios" ? 88 : 68;
+  }
+}
 
 export default function MiniAudioPlayer() {
   const {
@@ -34,13 +45,17 @@ export default function MiniAudioPlayer() {
 
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useSafeTabBarHeight();
   const pathname = usePathname();
-  const isAudioPlayerScreen = pathname?.includes("/audio-player");
+
+  const isAudioPlayerScreen = pathname?.includes("/audio/player");
 
   const y = useRef(new Animated.Value(80)).current;
   const progress = useRef(new Animated.Value(0)).current;
-
   const hasShown = useRef(false);
+
+  const [imageLoaded, setImageLoaded] = useState(false); // 👈 Track cover load state
+  const [showDefault, setShowDefault] = useState(true); // 👈 Show static default first
 
   useEffect(() => {
     if (current && !hasShown.current) {
@@ -69,12 +84,20 @@ export default function MiniAudioPlayer() {
     }).start();
   }, [pct]);
 
+  const defaultCover = require("@/assets/images/aud_banner.jpg");
+
   const cover = useMemo(() => {
-    if (!current?.thumb) return require("@/assets/images/aud1.png");
+    if (!current?.thumb) return defaultCover;
     return typeof current.thumb === "string"
       ? { uri: current.thumb }
       : current.thumb;
   }, [current?.thumb]);
+
+  useEffect(() => {
+    // When track changes, show default again until cover loads
+    setImageLoaded(false);
+    setShowDefault(true);
+  }, [current?.id]);
 
   const ended = duration > 0 && position >= duration - 750;
 
@@ -93,19 +116,20 @@ export default function MiniAudioPlayer() {
     outputRange: ["0%", "100%"],
   });
 
+  const bottomOffset = tabBarHeight - 12 + insets.bottom;
+
   return (
     <Animated.View
       style={[
         styles.wrap,
         {
-          paddingBottom: Math.max(insets.bottom, 8),
+          bottom: bottomOffset,
           transform: [{ translateY: y }],
         },
       ]}
       pointerEvents="box-none"
     >
       <View style={[styles.bar, { backgroundColor: colors.card }]}>
-        {/* progress */}
         <View
           style={[styles.progressTrack, { backgroundColor: colors.subtitle }]}
         />
@@ -116,13 +140,27 @@ export default function MiniAudioPlayer() {
           ]}
         />
 
-        <ExpoImage
-          source={cover}
-          style={styles.thumb}
-          contentFit="cover"
-          transition={200}
-          cachePolicy="disk"
-        />
+        {/* ✅ Show static image first, then fade in real cover */}
+        <View style={styles.thumbWrap}>
+          {showDefault && (
+            <ExpoImage
+              source={defaultCover}
+              style={[styles.thumb, StyleSheet.absoluteFillObject]}
+              contentFit="cover"
+            />
+          )}
+          <ExpoImage
+            source={cover}
+            style={styles.thumb}
+            contentFit="cover"
+            transition={300}
+            cachePolicy="disk"
+            onLoadEnd={() => {
+              setImageLoaded(true);
+              setTimeout(() => setShowDefault(false), 150);
+            }}
+          />
+        </View>
 
         <TouchableOpacity
           style={styles.middle}
@@ -148,11 +186,7 @@ export default function MiniAudioPlayer() {
             {fmt(position)}
           </Text>
 
-          <TouchableOpacity
-            accessibilityLabel={isPlaying ? "Pause audio" : "Play audio"}
-            onPress={handlePlayPause}
-            style={styles.iconHit}
-          >
+          <TouchableOpacity onPress={handlePlayPause} style={styles.iconHit}>
             <Ionicons
               name={isPlaying ? "pause" : "play"}
               size={20}
@@ -160,11 +194,7 @@ export default function MiniAudioPlayer() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            accessibilityLabel="Stop audio"
-            onPress={stop}
-            style={styles.iconHit}
-          >
+          <TouchableOpacity onPress={stop} style={styles.iconHit}>
             <Ionicons name="close" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -178,22 +208,20 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 40,
     alignItems: "center",
+    zIndex: 99,
   },
   bar: {
-    width: "100%",
-    borderRadius: 3,
+    width: "98%",
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     position: "relative",
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
   },
   progressTrack: {
     position: "absolute",
@@ -212,7 +240,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },
-  thumb: { width: 45, height: 45, borderRadius: 6, marginRight: 10 },
+  thumbWrap: {
+    width: 45,
+    height: 45,
+    borderRadius: 6,
+    marginRight: 10,
+    overflow: "hidden",
+  },
+  thumb: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 6,
+  },
   middle: { flex: 1 },
   title: { fontSize: 14, fontWeight: "600" },
   subtitle: { fontSize: 12, marginTop: 2 },

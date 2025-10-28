@@ -105,11 +105,12 @@ function VideoRowComponent({
         <ExpoImage
           recyclingKey={item.id?.videoId}
           source={
-            thumb ? { uri: thumb } : require("@/assets/images/event4.png")
+            thumb ? { uri: thumb } : require("@/assets/images/vid_cover.png")
           }
-          placeholder={require("@/assets/images/event4.png")}
+          placeholder={require("@/assets/images/vid_cover.png")}
           style={[styles.thumb, { backgroundColor: colors.card }]}
           contentFit="cover"
+          placeholderContentFit="cover"
           transition={200}
           cachePolicy="disk"
         />
@@ -129,62 +130,7 @@ function VideoRowComponent({
             </Text>
           )}
         </View>
-
-        {/* <TouchableOpacity
-          onPress={handleMenu}
-          activeOpacity={0.7}
-          style={styles.menuHit}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel="Open menu"
-        >
-          <Ionicons
-            name="ellipsis-vertical"
-            size={16}
-            color={colors.subtitle}
-          />
-        </TouchableOpacity> */}
       </TouchableOpacity>
-
-      {/* {menuOpen && Platform.OS !== "ios" && (
-        <View
-          style={[
-            styles.menu,
-            {
-              backgroundColor: colors.card + "E6",
-              borderColor: colors.subtitle,
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              closeMenu?.();
-              onDownload?.();
-            }}
-            accessibilityRole="menuitem"
-            accessibilityLabel="Download video"
-          >
-            <Ionicons name="download-outline" size={16} color={colors.text} />
-            <Text style={[styles.menuText, { color: colors.text }]}>
-              Download
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              closeMenu?.();
-              (onShare ?? handleShare)();
-            }}
-            accessibilityRole="menuitem"
-            accessibilityLabel="Share video"
-          >
-            <Ionicons name="share-outline" size={16} color={colors.text} />
-            <Text style={[styles.menuText, { color: colors.text }]}>Share</Text>
-          </TouchableOpacity>
-        </View>
-      )} */}
     </View>
   );
 }

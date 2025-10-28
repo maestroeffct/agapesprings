@@ -32,28 +32,28 @@ const CATEGORIES: CategoryItem[] = [
     title: "Phaneroo",
     subtitle: "Phaneroo Sermons",
     count: 538,
-    image: require("@/assets/images/aud1.png"),
+    image: require("@/assets/images/aud_banner.jpg"),
   },
   {
     id: "faith",
     title: "Only Believe",
     subtitle: "Sermons about Faith",
     count: 8,
-    image: require("@/assets/images/aud2.png"),
+    image: require("@/assets/images/aud_banner.jpg"),
   },
   {
     id: "money",
     title: "Divine Providence",
     subtitle: "Sermons about Money",
     count: 5,
-    image: require("@/assets/images/aud3.png"),
+    image: require("@/assets/images/aud_banner.jpg"),
   },
   {
     id: "prayer",
     title: "Prayer Codes",
     subtitle: "Prayer",
     count: 10,
-    image: require("@/assets/images/aud4.png"),
+    image: require("@/assets/images/aud_banner.jpg"),
   },
 ];
 

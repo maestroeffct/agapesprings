@@ -1,9 +1,16 @@
+import { Devotional, getDevotionals } from "@/api/devotional";
 import DevoImagesGrid from "@/components/DevoImagesGrid";
 import Header from "@/components/Header";
+import Loading from "@/components/Loading";
 import ScreenWrapper from "@/components/ScreenWrapper";
+import { useDevotionalFaves } from "@/store/DevotionalFavesContext";
 import { useTheme } from "@/store/ThemeContext";
-
-import React, { useEffect, useRef, useState } from "react";
+import {
+  loadDevotionalCache,
+  saveDevotionalCache,
+} from "@/utils/prefetchDevotionals";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   NativeScrollEvent,
@@ -16,110 +23,98 @@ import {
   useWindowDimensions,
 } from "react-native";
 
-import { Devotional, getDevotionals } from "@/api/devotional";
-import {
-  getFavedDevotionals,
-  getFavedIds,
-  toggleFave,
-} from "@/store/devotionalFaves";
-import {
-  loadDevotionalCache,
-  saveDevotionalCache,
-} from "@/utils/prefetchDevotionals";
-import { router } from "expo-router";
-
 type TabKey = "Latest" | "Favourites";
 
 export default function DevotionalScreen() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
 
+  const {
+    favIds,
+    favData,
+    toggle: handleToggleFave,
+    refresh: refreshFaves,
+  } = useDevotionalFaves();
+
   const [tab, setTab] = useState<TabKey>("Latest");
   const [latestData, setLatestData] = useState<Devotional[]>([]);
-  const [favIds, setFavIds] = useState<number[]>([]);
-  const [favData, setFavData] = useState<Devotional[]>([]);
-
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  // 🔹 Refresh Latest
-  async function handleRefresh() {
-    try {
-      setRefreshing(true);
-      await loadPage(1);
-      const ids = await getFavedIds();
-      setFavIds(ids);
-
-      const favs = await getFavedDevotionals();
-      setFavData(favs);
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  // 🔹 Load from API (but keep cache)
-  async function loadPage(p: number) {
+  /** 🔹 Fetch a page + update cache */
+  const loadPage = async (p: number) => {
     try {
       setLoadingMore(true);
-      const res = await getDevotionals(p, 80);
+      const res = await getDevotionals(p, 20);
 
-      if (p === 1) {
-        setLatestData(res.data);
-        await saveDevotionalCache(res.data); // now also downloads images
-      } else {
-        setLatestData((prev) => {
-          const merged = [...prev, ...res.data];
-          saveDevotionalCache(merged);
-          return merged;
-        });
-      }
+      setLatestData((prev) => {
+        const merged = p === 1 ? res.data : [...prev, ...res.data];
+        saveDevotionalCache(merged);
+        return merged;
+      });
 
       setPage(res.pagination.page);
       setHasMore(res.pagination.page < res.pagination.totalPages);
     } catch (err) {
-      console.error("Failed to load devotionals", err);
+      console.error("⚠️ Failed to load devotionals:", err);
     } finally {
       setLoadingMore(false);
+      if (p === 1) setInitialLoading(false);
     }
-  }
-
-  function handleLoadMore() {
-    if (!loadingMore && hasMore) {
-      loadPage(page + 1);
-    }
-  }
-
-  // 🔹 Load cache first, then sync
-  useEffect(() => {
-    (async () => {
-      const cached = await loadDevotionalCache();
-      if (cached.length) setLatestData(cached);
-
-      const ids = await getFavedIds();
-      setFavIds(ids);
-
-      const favs = await getFavedDevotionals();
-      setFavData(favs);
-
-      // 🔄 Sync in background
-      loadPage(1);
-    })();
-  }, []);
-
-  const handleToggleFave = async (id: number, devo?: Devotional) => {
-    const updated = await toggleFave(id, devo);
-    setFavIds(updated);
-
-    const favs = await getFavedDevotionals();
-    setFavData(favs);
   };
 
-  // 🔹 Pager underline animation
+  /** 🔹 Refresh */
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await Promise.allSettled([loadPage(1), refreshFaves()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  /** 🔹 Load More (pagination) */
+  const handleLoadMore = useCallback(() => {
+    if (!loadingMore && hasMore) loadPage(page + 1);
+  }, [loadingMore, hasMore, page]);
+
+  /** ⚡ Optimized Mount: show cache instantly + background fetch */
+  useEffect(() => {
+    let didCancel = false;
+
+    (async () => {
+      const cached = await loadDevotionalCache();
+
+      if (!didCancel && cached.length) {
+        // ✅ show cache instantly
+        setLatestData(cached);
+        setInitialLoading(false);
+      }
+
+      // ⚙️ then do a background refresh after frame paint
+      requestAnimationFrame(async () => {
+        try {
+          await Promise.allSettled([loadPage(1), refreshFaves()]);
+        } catch (err) {
+          console.error("⚠️ Background refresh error:", err);
+          if (!didCancel) setInitialLoading(false);
+        }
+      });
+    })();
+
+    return () => {
+      didCancel = true;
+    };
+  }, []);
+
+  /** 🔹 Pager & Tab logic */
   const pagerRef = useRef<ScrollView | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [tabsW, setTabsW] = useState(0);
+
   const underlineTranslateX = scrollX.interpolate({
     inputRange: [0, width],
     outputRange: [0, tabsW / 2],
@@ -145,36 +140,37 @@ export default function DevotionalScreen() {
         colors.background === "#111827" ? "light-content" : "dark-content"
       }
     >
-      <Header title="Devotionals" />
+      <Header
+        title="Devotionals"
+        rightIcons={[
+          {
+            name: "download-outline",
+            onPress: () => router.push("/devotionalDownloads"),
+          },
+        ]}
+      />
 
       {/* Tabs */}
       <View
         style={[styles.tabsRow, { borderBottomColor: colors.subtitle }]}
         onLayout={(e) => setTabsW(e.nativeEvent.layout.width - 28)}
       >
-        <TouchableOpacity style={styles.tabBtn} onPress={() => goTo("Latest")}>
-          <Text
-            style={[
-              styles.tabText,
-              { color: tab === "Latest" ? colors.text : colors.subtitle },
-            ]}
+        {(["Latest", "Favourites"] as TabKey[]).map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={styles.tabBtn}
+            onPress={() => goTo(t)}
           >
-            Latest
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tabBtn}
-          onPress={() => goTo("Favourites")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: tab === "Favourites" ? colors.text : colors.subtitle },
-            ]}
-          >
-            Favourites
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                { color: tab === t ? colors.text : colors.subtitle },
+              ]}
+            >
+              {t}
+            </Text>
+          </TouchableOpacity>
+        ))}
 
         <Animated.View
           pointerEvents="none"
@@ -199,31 +195,49 @@ export default function DevotionalScreen() {
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
+          {
+            useNativeDriver: false,
+          }
         )}
       >
-        {/* Latest */}
+        {/* 🔸 Latest Tab */}
         <View style={{ width }}>
-          <DevoImagesGrid
-            data={latestData}
-            favIds={favIds}
-            onToggleFave={handleToggleFave}
-            onEndReached={handleLoadMore}
-            loadingMore={loadingMore}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            onPressItem={(item) =>
-              router.push({
-                pathname: "/devotional/[id]",
-                params: { id: String(item.id) },
-              })
-            }
-          />
+          {initialLoading ? (
+            <View style={styles.center}>
+              <Loading size={40} />
+            </View>
+          ) : latestData.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Text style={[styles.emptyText, { color: colors.subtitle }]}>
+                No devotionals yet
+              </Text>
+            </View>
+          ) : (
+            <DevoImagesGrid
+              data={latestData}
+              favIds={favIds}
+              onToggleFave={handleToggleFave}
+              onEndReached={handleLoadMore}
+              loadingMore={loadingMore}
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              onPressItem={(item) =>
+                router.push({
+                  pathname: "/devotional/[id]",
+                  params: { id: String(item.id) },
+                })
+              }
+            />
+          )}
         </View>
 
-        {/* Favourites */}
+        {/* 🔸 Favourites Tab */}
         <View style={{ width, flex: 1 }}>
-          {favData.length === 0 ? (
+          {initialLoading ? (
+            <View style={styles.center}>
+              <Loading size={40} />
+            </View>
+          ) : favData.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={[styles.emptyText, { color: colors.subtitle }]}>
                 No favourites yet
@@ -249,6 +263,7 @@ export default function DevotionalScreen() {
   );
 }
 
+/* ---------- Styles ---------- */
 const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: "row",
@@ -273,4 +288,5 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: { fontSize: 14, fontWeight: "600" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

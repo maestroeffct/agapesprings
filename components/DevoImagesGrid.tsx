@@ -1,3 +1,4 @@
+import type { Devotional } from "@/api/devotional";
 import { useTheme } from "@/store/ThemeContext";
 import { Image as ExpoImage } from "expo-image";
 import React from "react";
@@ -10,14 +11,6 @@ import {
   View,
 } from "react-native";
 import Loading from "./Loading";
-
-export type Devotional = {
-  id: number;
-  timePosted: string;
-  headerUrl: string;
-  content?: string[];
-  featured?: boolean; // optional flag if you want one featured item
-};
 
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
@@ -41,12 +34,11 @@ const formatDevoDate = (iso: string) => {
 };
 
 const imgFallback = require("@/assets/images/devo.jpg");
-const imgEmpty = require("@/assets/images/devo.jpg"); // 👈 show when no favourites
 
 type Props = {
   data: Devotional[];
   favIds?: number[];
-  onToggleFave?: (id: number, devo: Devotional) => void; // <— changed
+  onToggleFave?: (id: number, devo?: Devotional) => Promise<void> | void;
   onPressItem?: (item: Devotional) => void;
   onEndReached?: () => void;
   loadingMore?: boolean;
@@ -67,7 +59,6 @@ export default function DevoImagesGrid({
   emptyMessage = "No devotionals yet.",
 }: Props) {
   const { colors } = useTheme();
-
   const rest = data.filter((d) => !d.featured);
 
   return (
@@ -91,11 +82,6 @@ export default function DevoImagesGrid({
       showsVerticalScrollIndicator={false}
       onEndReachedThreshold={0.4}
       onEndReached={onEndReached}
-      // ListEmptyComponent={
-      //   <View style={styles.emptyWrap}>
-      //     <Loading size={40} />
-      //   </View>
-      // }
       ListFooterComponent={
         loadingMore ? (
           <Loading size={20} style={{ marginVertical: 12 }} />
@@ -105,16 +91,22 @@ export default function DevoImagesGrid({
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={[colors.primary]} // Android
-          tintColor={colors.primary} // iOS
+          colors={[colors.primary]}
+          tintColor={colors.primary}
         />
+      }
+      ListEmptyComponent={
+        <View style={styles.emptyWrap}>
+          <Text style={[styles.emptyText, { color: colors.subtitle }]}>
+            {emptyMessage}
+          </Text>
+        </View>
       }
     />
   );
 }
 
-/* ---------- cards ---------- */
-
+/* ---------- Card Component ---------- */
 function GridCard({
   item,
   favIds,
@@ -123,18 +115,26 @@ function GridCard({
 }: {
   item: Devotional;
   favIds?: number[];
-  onToggleFave?: (id: number, devo: Devotional) => void; // <— changed
+  onToggleFave?: (id: number, devo?: Devotional) => Promise<void> | void;
   onPressItem?: (it: Devotional) => void;
 }) {
   const isFav = favIds?.includes(item.id);
+
+  // ✅ Background prefetch (non-blocking navigation)
+  const handlePress = () => {
+    const urls = [item.headerUrl, ...(item.content || [])].filter(
+      (x): x is string => !!x && typeof x === "string"
+    );
+
+    urls.forEach((u) => ExpoImage.prefetch(u).catch(() => {})); // background prefetch
+    onPressItem?.(item); // navigate immediately
+  };
 
   return (
     <TouchableOpacity
       style={styles.gridCardWrap}
       activeOpacity={0.85}
-      onPress={() =>
-        onPressItem ? onPressItem(item) : console.log("Open", item.id)
-      }
+      onPress={handlePress}
     >
       <View style={[styles.cardBg, styles.gridRatio]}>
         <ExpoImage
@@ -143,8 +143,9 @@ function GridCard({
           placeholderContentFit="cover"
           style={[StyleSheet.absoluteFill, styles.cardImg]}
           contentFit="cover"
-          transition={300}
-          cachePolicy="disk"
+          transition={0} // 🚀 instant render
+          cachePolicy="memory-disk"
+          recyclingKey={`grid-${item.id}`}
         />
 
         {/* Overlay */}
@@ -166,7 +167,7 @@ function GridCard({
   );
 }
 
-/* ---------- pill ---------- */
+/* ---------- Pill ---------- */
 function Pill({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.pill}>
@@ -177,7 +178,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ---------- styles ---------- */
+/* ---------- Styles ---------- */
 const styles = StyleSheet.create({
   gridContent: {
     paddingHorizontal: 14,
@@ -187,7 +188,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-
   gridCardWrap: { width: "48%" },
   cardBg: {
     borderRadius: 12,
@@ -195,15 +195,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   cardImg: { borderRadius: 12 },
-
-  heroRatio: { aspectRatio: 16 / 9 },
   gridRatio: { aspectRatio: 1 },
-
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.25)",
   },
-
   topRow: {
     position: "absolute",
     top: 8,
@@ -218,31 +214,11 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   pillText: { fontSize: 11, color: "#111", fontWeight: "700" },
-
-  heroTitle: {
-    marginTop: 8,
-    marginBottom: 4,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  gridTitle: {
-    marginTop: 8,
-    marginBottom: 2,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-
-  separator: {
-    height: 1,
-    marginHorizontal: 14,
-    marginVertical: 14,
-  },
-
   emptyWrap: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 40,
   },
-  emptyImg: { width: 160, height: 160, marginBottom: 12 },
   emptyText: { fontSize: 14, fontWeight: "600" },
 });

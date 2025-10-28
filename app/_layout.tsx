@@ -1,12 +1,17 @@
 import MiniAudioPlayer from "@/components/MiniAudioPlayer";
 import { ThemeModalProvider } from "@/components/ThemeModalHost";
-import service from "@/service"; // 👈 make sure the path is correct
+import { useSocketNotifications } from "@/hooks/useSocketNotifications";
+import service from "@/service";
 import { store } from "@/store";
 import { AudioPlayerProvider } from "@/store/AudioPlayerContext";
+import { DevotionalFavesProvider } from "@/store/DevotionalFavesContext";
 import { NotificationProvider } from "@/store/NotificationContext";
-import { registerForPushNotificationsAsync } from "@/store/notificationService";
 import { ThemeProvider } from "@/store/ThemeContext";
 import { VideoProvider } from "@/store/VideoContext";
+import {
+  listenToNotifications,
+  registerForPushNotificationsAsync,
+} from "@/store/notificationService";
 import {
   preloadDevotionals,
   preloadDrawerScreens,
@@ -16,34 +21,67 @@ import {
 } from "@/utils/preload";
 import * as Linking from "expo-linking";
 import { Stack, useRouter, useSegments } from "expo-router";
-import React, { useEffect } from "react";
-import { GestureHandlerRootView } from "react-native-gesture-handler"; // 👈 import
+import React, { useEffect, useState } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
 } from "react-native-track-player";
 import { Provider } from "react-redux";
 
-// register once
+// Register playback service once
 TrackPlayer.registerPlaybackService(() => service);
+
 export default function RootLayout() {
+  const router = useRouter();
+  const [ready, setReady] = useState(false); // 👈 Wait flag
+
+  useSocketNotifications();
+
   useEffect(() => {
-    // fire and forget – no blocking
+    listenToNotifications();
+    registerForPushNotificationsAsync();
+
+    // Preload data (non-blocking)
     preloadHome();
     preloadDevotionals();
     preloadNotifications();
     preloadLivingwaters();
-    preloadDevotionals();
     preloadDrawerScreens();
   }, []);
 
-  const router = useRouter();
+  // Handle deep links safely
+  useEffect(() => {
+    const handleDeepLink = ({ url }: { url: string }) => {
+      console.log("🔗 Received URL:", url);
+
+      if (
+        url.startsWith("trackplayer://notification.click") ||
+        url.startsWith("agape:///notification.click")
+      ) {
+        router.replace("/audio-player");
+      } else if (url.startsWith("agape:///")) {
+        console.log("⚠️ Unrecognized deep link, ignoring:", url);
+      }
+
+      setReady(true); // ✅ Allow render after handling
+    };
+
+    const sub = Linking.addEventListener("url", handleDeepLink);
+
+    (async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) handleDeepLink({ url: initialUrl });
+      else setReady(true); // ✅ No URL, proceed normally
+    })();
+
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const setupPlayer = async () => {
       try {
         await TrackPlayer.setupPlayer();
-
         await TrackPlayer.updateOptions({
           capabilities: [
             Capability.Play,
@@ -61,59 +99,22 @@ export default function RootLayout() {
             Capability.SkipToPrevious,
           ],
           icon: require("../assets/images/notification.png"),
-
           android: {
             appKilledPlaybackBehavior:
               AppKilledPlaybackBehavior.ContinuePlayback,
             alwaysPauseOnInterruption: true,
           },
         });
-
-        console.log("✅ TrackPlayer is set up with background controls");
-      } catch (error) {
-        console.error("Error setting up TrackPlayer:", error);
+        console.log("✅ TrackPlayer is ready");
+      } catch (e) {
+        console.error("TrackPlayer setup failed:", e);
       }
     };
-
     setupPlayer();
-
-    return () => {
-      TrackPlayer.reset();
-    };
   }, []);
 
-  useEffect(() => {
-    const sub = Linking.addEventListener("url", ({ url }) => {
-      const { path } = Linking.parse(url);
-
-      if (path === "notification.click") {
-        // 👇 redirect notification taps to your player screen
-        router.push("/audio-player");
-      }
-
-      if (path === "audio-player") {
-        router.push("/audio-player");
-      }
-    });
-
-    return () => sub.remove();
-  }, []);
-
-  // const segments = useSegments();
-  // const hideMini = [
-  //   "(drawer)",
-  //   "audio-player",
-  //   "queue",
-  //   "downloads",
-  //   "aboutus",
-  //   "give",
-  //   "settings",
-  //   "share",
-  //   "platform",
-  //   "/video",
-  // ].includes(segments[0]);
   const segments = useSegments();
-  const lastSegment = segments[segments.length - 1]; // Get the actual screen
+  const lastSegment = segments[segments.length - 1];
   const hideMini = [
     "audio-player",
     "queue",
@@ -126,11 +127,11 @@ export default function RootLayout() {
     "platform",
     "/video",
     "CustomDrawer",
+    "onesoundDownload",
   ].includes(lastSegment);
 
-  useEffect(() => {
-    registerForPushNotificationsAsync();
-  }, []);
+  // ✅ Prevent rendering until deep link check completes
+  if (!ready) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -139,17 +140,19 @@ export default function RootLayout() {
           <Provider store={store}>
             <VideoProvider>
               <AudioPlayerProvider>
-                <NotificationProvider>
-                  <Stack
-                    initialRouteName="(drawer)"
-                    screenOptions={{ headerShown: false }}
-                  >
-                    <Stack.Screen
-                      name="(drawer)"
-                      options={{ headerShown: false }}
-                    />
-                  </Stack>
-                </NotificationProvider>
+                <DevotionalFavesProvider>
+                  <NotificationProvider>
+                    <Stack
+                      initialRouteName="(drawer)"
+                      screenOptions={{ headerShown: false }}
+                    >
+                      <Stack.Screen
+                        name="(drawer)"
+                        options={{ headerShown: false }}
+                      />
+                    </Stack>
+                  </NotificationProvider>
+                </DevotionalFavesProvider>
                 {!hideMini && <MiniAudioPlayer />}
               </AudioPlayerProvider>
             </VideoProvider>

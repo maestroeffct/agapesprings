@@ -1,9 +1,13 @@
 import { useTheme } from "@/store/ThemeContext";
 import { useVideo } from "@/store/VideoContext";
-import { useGetVideosQuery } from "@/store/youtubeApi";
+import {
+  useGetTestimonyVideosQuery,
+  useGetVideosQuery,
+} from "@/store/youtubeApi";
 import { loadCache, saveCache } from "@/utils/cache";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
+import { usePathname } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,7 +33,10 @@ type Props = {
 const YT_ID_RE = /[A-Za-z0-9_-]{11}/;
 const getVideoId = (v: any): string | undefined => {
   if (!v) return;
-  if (v?.snippet?.resourceId?.videoId && YT_ID_RE.test(v.snippet.resourceId.videoId))
+  if (
+    v?.snippet?.resourceId?.videoId &&
+    YT_ID_RE.test(v.snippet.resourceId.videoId)
+  )
     return v.snippet.resourceId.videoId;
   if (v?.contentDetails?.videoId && YT_ID_RE.test(v.contentDetails.videoId))
     return v.contentDetails.videoId;
@@ -52,45 +59,62 @@ const formatDate = (iso?: string) => {
 export default function VideoComponent({ item, onClose, onSelect }: Props) {
   const { colors, isDark } = useTheme();
   const { setVideoId } = useVideo();
+  const pathname = usePathname();
+
+  // 🔹 Detect if we're in the testimonies section
+  const isTestimonySection = pathname.includes("testimonies");
 
   const currentId = getVideoId(item);
   const [openMeta, setOpenMeta] = useState(false);
-
-  // Local state for full list
   const [allVideos, setAllVideos] = useState<any[]>([]);
   const [pageToken, setPageToken] = useState<string | undefined>(undefined);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
 
-  const { data, isLoading, isError, isFetching } = useGetVideosQuery(
+  // 🔹 Use the correct API hook (call both unconditionally, then pick result)
+  const testimonyQuery = useGetTestimonyVideosQuery(
     { maxResults: 50, pageToken },
-    { skip: pageToken === null }
+    { skip: !isTestimonySection || pageToken === null }
+  );
+  const videosQuery = useGetVideosQuery(
+    { maxResults: 50, pageToken },
+    { skip: isTestimonySection || pageToken === null }
   );
 
-  // load cached on mount
+  const { data, isLoading, isError, isFetching } = isTestimonySection
+    ? testimonyQuery
+    : videosQuery;
+
+  // 🔹 Choose cache key dynamically
+  const cacheKey = isTestimonySection ? "testimoniesCache" : "videosCache";
+
+  // Load cached videos/testimonies
   useEffect(() => {
     (async () => {
-      const cached = await loadCache<any[]>("videosCache", []);
+      const cached = await loadCache<any[]>(cacheKey, []);
       if (cached.length) setAllVideos(cached);
     })();
-  }, []);
+  }, [cacheKey]);
 
-  // add new data to state + cache
+  // Merge and cache
   useEffect(() => {
     if (data?.items) {
       setAllVideos((prev) => {
         const merged = [...prev, ...data.items];
-        saveCache("videosCache", merged);
+        saveCache(cacheKey, merged);
         return merged;
       });
       setPageToken(data.nextPageToken ?? null);
     }
-  }, [data]);
+  }, [data, cacheKey]);
 
   useEffect(() => {
     if (currentId) setVideoId(currentId);
   }, [currentId]);
 
   const related = useMemo(() => {
-    return allVideos.filter((v) => getVideoId(v) && getVideoId(v) !== currentId);
+    return allVideos.filter(
+      (v) => getVideoId(v) && getVideoId(v) !== currentId
+    );
   }, [allVideos, currentId]);
 
   return (
@@ -105,27 +129,54 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
           <TouchableOpacity onPress={onClose} style={styles.backHit}>
             <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.topTitle, { color: colors.text }]} numberOfLines={1}>
-            {item?.snippet?.title || "Video"}
+          <Text
+            style={[styles.topTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {item?.snippet?.title ||
+              (isTestimonySection ? "Testimony" : "Video")}
           </Text>
           <View style={{ width: 22 }} />
         </View>
 
-        {/* Hero banner */}
+        {/* YouTube Player */}
         {currentId && (
           <View style={{ width, height: HERO_HEIGHT, backgroundColor: "#000" }}>
+            {!isPlayerReady && (
+              <ExpoImage
+                source={{
+                  uri:
+                    item?.snippet?.thumbnails?.maxres?.url ||
+                    item?.snippet?.thumbnails?.standard?.url ||
+                    item?.snippet?.thumbnails?.high?.url ||
+                    item?.snippet?.thumbnails?.medium?.url ||
+                    item?.snippet?.thumbnails?.default?.url,
+                }}
+                style={styles.heroThumb}
+                contentFit="cover"
+                transition={300}
+              />
+            )}
+
+            {!isPlayerReady && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            )}
+
             <YoutubePlayer
               height={HERO_HEIGHT}
               width={width}
-              play={true}
+              play
               videoId={currentId}
+              onReady={() => setIsPlayerReady(true)}
               initialPlayerParams={{
                 autoplay: true,
                 controls: true,
                 modestbranding: true,
                 rel: false,
               }}
-              webViewStyle={{ flex: 1 }}
+              webViewStyle={{ flex: 1, opacity: isPlayerReady ? 1 : 0 }}
               webViewProps={{
                 androidLayerType: "hardware",
                 allowsFullscreenVideo: true,
@@ -134,7 +185,7 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
           </View>
         )}
 
-        {/* Title row */}
+        {/* Title + Description */}
         <View style={styles.titleWrap}>
           <Text
             style={[styles.pageTitle, { color: colors.text }]}
@@ -170,7 +221,6 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
             const vthumb =
               v?.snippet?.thumbnails?.high?.url ||
               v?.snippet?.thumbnails?.medium?.url;
-
             return (
               <TouchableOpacity
                 onPress={() => onSelect(v)}
@@ -178,13 +228,16 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
                 style={styles.row}
               >
                 <ExpoImage
-                  source={vthumb ? { uri: vthumb } : require("@/assets/images/event4.png")}
-                  placeholder={require("@/assets/images/event4.png")}
+                  source={
+                    vthumb
+                      ? { uri: vthumb }
+                      : require("@/assets/images/flow1.png")
+                  }
+                  placeholder={require("@/assets/images/flow1.png")}
                   placeholderContentFit="cover"
                   style={styles.rowThumb}
                   contentFit="cover"
                   transition={300}
-                  cachePolicy="disk"
                 />
                 <View style={styles.rowRight}>
                   <Text
@@ -203,20 +256,26 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
           ListHeaderComponent={
             <>
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                Related
+                {isTestimonySection ? "Related Testimonies" : "Related Videos"}
               </Text>
               {isLoading && (
-                <ActivityIndicator style={{ marginVertical: 12 }} color={colors.primary} />
+                <ActivityIndicator
+                  style={{ marginVertical: 12 }}
+                  color={colors.primary}
+                />
               )}
               {isError && (
                 <Text style={[styles.error, { color: colors.primary }]}>
-                  Failed to load related videos
+                  Failed to load related{" "}
+                  {isTestimonySection ? "testimonies" : "videos"}
                 </Text>
               )}
             </>
           }
           ListFooterComponent={
-            isFetching ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null
+            isFetching ? (
+              <ActivityIndicator style={{ marginVertical: 12 }} />
+            ) : null
           }
           showsVerticalScrollIndicator={false}
         />
@@ -227,7 +286,6 @@ export default function VideoComponent({ item, onClose, onSelect }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
   topBar: {
     height: 50,
     paddingHorizontal: 12,
@@ -236,7 +294,6 @@ const styles = StyleSheet.create({
   },
   backHit: { padding: 6, marginRight: 8 },
   topTitle: { flex: 1, fontSize: 16, fontWeight: "600" },
-
   titleWrap: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -246,7 +303,6 @@ const styles = StyleSheet.create({
   },
   pageTitle: { flex: 1, fontSize: 15, fontWeight: "600" },
   description: { paddingHorizontal: 12, marginBottom: 8, lineHeight: 20 },
-
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -255,7 +311,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   error: { paddingHorizontal: 12, marginBottom: 6 },
-
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -272,4 +327,18 @@ const styles = StyleSheet.create({
   rowRight: { flex: 1 },
   rowTitle: { fontSize: 14, fontWeight: "500", marginBottom: 7 },
   rowDate: { fontSize: 12 },
+  heroThumb: {
+    width: "100%",
+    height: HERO_HEIGHT,
+    position: "absolute",
+    top: 0,
+    left: 0,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    zIndex: 2,
+  },
 });

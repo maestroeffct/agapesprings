@@ -22,7 +22,7 @@ export default function VideoRoute() {
         item={parsed}
         onClose={() => router.back()}
         onSelect={(next) =>
-          router.push({
+          router.replace({
             pathname: "/video",
             params: { item: encodeURIComponent(JSON.stringify(next)) },
           })

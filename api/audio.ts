@@ -4,10 +4,41 @@ import apiClient from "./client";
 // ✅ Get paginated sermons
 export async function getAudioSermons(
   page = 1,
-  size = 10
+  size = 20,
+  fetchAll = false
 ): Promise<AudioSermon[]> {
-  const res = await apiClient.get(`/audioSermon/files/${page}/${size}`);
-  return res.data?.data || [];
+  try {
+    if (!fetchAll) {
+      const res = await apiClient.get(`/audioSermon/files/${page}/${size}`);
+      return res.data?.data || [];
+    }
+
+    // 🔁 Auto-paginate until no more results
+    let allData: AudioSermon[] = [];
+    let currentPage = 1;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const res = await apiClient.get(
+        `/audioSermon/files/${currentPage}/${size}`
+      );
+      const items: AudioSermon[] = res.data?.data || [];
+
+      if (items.length === 0) {
+        keepFetching = false;
+      } else {
+        allData = [...allData, ...items];
+        // stop if we fetched less than requested
+        if (items.length < size) keepFetching = false;
+        currentPage++;
+      }
+    }
+
+    return allData;
+  } catch (err: any) {
+    console.error("❌ getAudioSermons failed:", err.message || err);
+    return [];
+  }
 }
 
 // ✅ Get categories

@@ -57,7 +57,8 @@ const AnimatedCard = ({
               source={
                 typeof image === "string" && image
                   ? { uri: image }
-                  : (image as number) || require("@/assets/images/screen1.png")
+                  : (image as number) ||
+                    require("@/assets/images/aud_message.png")
               }
               style={styles.image}
               resizeMode="cover"

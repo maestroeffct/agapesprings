@@ -5,9 +5,10 @@ import { useAudioPlayer } from "@/store/AudioPlayerContext";
 import { useDownloads } from "@/store/download";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -21,19 +22,46 @@ export default function Downloads() {
   const { colors } = useTheme();
   const router = useRouter();
   const { downloads, removeDownload } = useDownloads();
+  const { play, setQueue, current } = useAudioPlayer();
 
-  const { play, setQueue, current } = useAudioPlayer(); // 👈 also grab `current`
+  // 🧠 Instant loading improvements
+  const [cachedDownloads, setCachedDownloads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // ✅ Load cached downloads first (so it opens instantly)
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const raw = await AsyncStorage.getItem("downloads");
+        const parsed = raw ? JSON.parse(raw) : {};
+        setCachedDownloads(Object.values(parsed));
+      } catch (e) {
+        console.warn("Failed to load cached downloads:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadCache();
+  }, []);
+
+  // ✅ Keep updating when store changes
+  useEffect(() => {
+    if (Object.keys(downloads).length > 0) {
+      setCachedDownloads(Object.values(downloads));
+    }
+  }, [downloads]);
+
+  // 🎧 Handle play logic
   const handlePlay = async (item: any) => {
     if (item.status !== "completed" || !item.localPath) return;
 
-    // if this is already playing, just navigate once
+    // If currently playing same sermon → go to player directly
     if (current && String(current.id) === String(item.id)) {
-      router.replace("/audio-player"); // 👈 replace avoids stacking
+      router.replace("/audio-player");
       return;
     }
 
-    const downloadedList = Object.values(downloads)
+    const downloadedList = cachedDownloads
       .filter((d) => d.status === "completed" && d.localPath)
       .map((d) => ({
         id: d.id,
@@ -58,9 +86,10 @@ export default function Downloads() {
       downloadedList
     );
 
-    router.replace("/audio-player"); // 👈 only one screen, no duplicates
+    router.replace("/audio-player");
   };
 
+  // 🗑️ Handle delete
   const handleDelete = (id: string | number) => {
     Alert.alert(
       "Delete Download",
@@ -78,6 +107,21 @@ export default function Downloads() {
     );
   };
 
+  // 🌀 Loading state
+  if (loading && cachedDownloads.length === 0) {
+    return (
+      <ScreenWrapper
+        style={{ backgroundColor: colors.background }}
+        statusBarColor={colors.background}
+      >
+        <View style={styles.center}>
+          <Loading size={60} color={colors.primary} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  // 🧾 Actual list
   return (
     <ScreenWrapper
       style={{ backgroundColor: colors.background }}
@@ -87,12 +131,16 @@ export default function Downloads() {
       }
     >
       <TopBar
-        title="Downloads"
+        title="Sermon Downloads"
         leftIcons={[{ name: "arrow-back", onPress: () => router.back() }]}
       />
 
       <FlatList
-        data={Object.values(downloads)}
+        data={
+          Object.values(downloads).length
+            ? Object.values(downloads)
+            : cachedDownloads
+        }
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => {
           const downloading = item.status === "downloading";
@@ -184,12 +232,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   infoWrap: { flexDirection: "row", alignItems: "center", flex: 1 },
-  thumb: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
-  },
+  thumb: { width: 60, height: 60, borderRadius: 8, marginRight: 12 },
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: "600" },
   author: { fontSize: 13, marginTop: 2 },
@@ -203,4 +246,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 40,
   },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

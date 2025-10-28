@@ -1,16 +1,21 @@
 import AudioSection from "@/components/AudioSection";
 import CarouselSection from "@/components/CarouselSection";
 import Header from "@/components/Header";
+import Loading from "@/components/Loading";
 import ScreenWrapper from "@/components/ScreenWrapper";
+import TestimonySection from "@/components/TestimonySection";
 import VideoComponent from "@/components/VideoScreen";
 import VideoSection from "@/components/VideoSection";
 import { colors } from "@/constants/theme";
 import { useAudioSermons } from "@/hooks/useAudioSermon";
 import { useCarousel } from "@/hooks/useCarousel";
+import { useTestimonies } from "@/hooks/useTestimonies";
 import { useVideoSermons } from "@/hooks/useVideoSermon";
 import { useNotifications } from "@/store/NotificationContext";
+import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
+
 import {
   RefreshControl,
   ScrollView,
@@ -19,21 +24,66 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { WebView } from "react-native-webview";
 
 export default function HomeScreen() {
   const { unreadCount, markAllRead } = useNotifications();
-  const { refetch } = useVideoSermons();
+  const { reload } = useVideoSermons();
   const { reload: reloadAudio } = useAudioSermons();
   const { reload: reloadCarousel } = useCarousel();
+
   const [refreshing, setRefreshing] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
+  const [webKey, setWebKey] = useState(0);
+  const { reload: reloadTestimonies } = useTestimonies();
 
+  // Helper function to schedule notifications
+  const scheduleDailyNotification = async (
+    id: string,
+    title: string,
+    body: string,
+    hour: number,
+    minute: number,
+    repeat: boolean = true,
+    weekday?: number, // optional: 0=Sun, 1=Mon, ..., 6=Sat
+    data?: any
+  ) => {
+    // Cancel previous with same id
+    await Notifications.cancelScheduledNotificationAsync(id);
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data,
+      },
+      trigger: {
+        hour,
+        minute,
+        repeats: repeat,
+        // Weekday-based trigger handled inside listener below
+      },
+    });
+  };
+
+  // Only refresh when on Latest tab
   const onRefresh = useCallback(async () => {
+    if (tabIndex !== 0) return;
     setRefreshing(true);
-    await Promise.all([refetch(), reloadAudio(), reloadCarousel()]);
-    setRefreshing(false);
-  }, [refetch, reloadAudio, reloadCarousel]);
+    try {
+      await Promise.all([
+        reload(),
+        reloadAudio(),
+        reloadCarousel(),
+        reloadTestimonies(),
+      ]);
+    } catch (err) {
+      console.error("Failed to refresh:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [tabIndex, reload, reloadAudio, reloadCarousel, reloadTestimonies]);
 
   if (selectedVideo)
     return (
@@ -45,7 +95,7 @@ export default function HomeScreen() {
     );
 
   return (
-    <ScreenWrapper>
+    <ScreenWrapper style={{ flex: 1 }}>
       <Header
         rightIcons={[
           {
@@ -75,27 +125,60 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {tabIndex === 0 ? (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-            />
-          }
-        >
-          <CarouselSection />
-          <VideoSection onSelect={setSelectedVideo} />
-          <AudioSection />
-        </ScrollView>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Resources</Text>
-          <Text>Resources content will go here.</Text>
+      <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, display: tabIndex === 0 ? "flex" : "none" }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+              />
+            }
+          >
+            <CarouselSection />
+            <VideoSection onSelect={setSelectedVideo} />
+            <AudioSection />
+            <TestimonySection onSelect={setSelectedVideo} />
+          </ScrollView>
         </View>
-      )}
+
+        <View style={{ flex: 1, display: tabIndex === 1 ? "flex" : "none" }}>
+          <ScrollView
+            contentContainerStyle={{ flex: 1 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={async () => {
+                  setRefreshing(true);
+                  try {
+                    setWebKey((prev) => prev + 1);
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+                colors={[colors.primary]}
+              />
+            }
+          >
+            <WebView
+              key={webKey}
+              source={{ uri: "https://www.agapespringsint.com/resources" }}
+              style={{ flex: 1, minHeight: 800 }}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.loadingView}>
+                  <Loading size={35} />
+                </View>
+              )}
+              javaScriptEnabled
+              domStorageEnabled
+              allowsFullscreenVideo
+            />
+          </ScrollView>
+        </View>
+      </View>
     </ScreenWrapper>
   );
 }
@@ -116,6 +199,9 @@ const styles = StyleSheet.create({
   activeTab: { backgroundColor: colors.primary },
   tabText: { fontSize: 14, color: "#6d6c6c" },
   activeTabText: { color: "#fff", fontWeight: "bold" },
-  section: { marginTop: 20, paddingHorizontal: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: "bold", color: colors.primary },
+  loadingView: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

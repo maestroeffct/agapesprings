@@ -1,5 +1,4 @@
 import { getAudioSermons } from "@/api/audio";
-import { getCategories } from "@/api/categories";
 import Header from "@/components/Header";
 import ScreenWrapper from "@/components/ScreenWrapper";
 import { useTheme } from "@/store/ThemeContext";
@@ -19,9 +18,10 @@ import {
 
 // Tabs
 import AudioTab from "@/components/AudioTab";
+import PremiereTab from "@/components/PremiereTab";
 import VideoTab from "@/components/VideoTab";
 
-const topTabs = ["Video", "Audio Tapes"] as const;
+const topTabs = ["Video", "Audio", "Edify Broadcast"] as const;
 type TopTab = (typeof topTabs)[number];
 
 const UNDERLINE_H = 3;
@@ -35,17 +35,15 @@ export default function LivingWatersScreen() {
   const pagerRef = useRef<FlatList<TopTab> | null>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
-  const { refetch: refetchVideos, data: videos } = useGetVideosQuery(10);
+  const { refetch: refetchVideos, data: videos } = useGetVideosQuery({
+    maxResults: 10,
+  });
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([
-        refetchVideos(),
-        getAudioSermons(1, 5),
-        getCategories?.(),
-      ]);
+      await Promise.all([refetchVideos(), getAudioSermons(1, 10)]);
       console.log("✅ Living Waters refreshed");
     } catch (e) {
       console.warn("Refresh failed:", e);
@@ -232,6 +230,14 @@ export default function LivingWatersScreen() {
                   <VideoTab
                     query={query}
                     onChangeQuery={setQuery}
+                    onSelectVideo={(item) => {
+                      router.push({
+                        pathname: "/video",
+                        params: {
+                          item: encodeURIComponent(JSON.stringify(item)),
+                        },
+                      });
+                    }}
                     refreshControl={
                       <RefreshControl
                         refreshing={refreshing}
@@ -243,28 +249,18 @@ export default function LivingWatersScreen() {
                   />
                 </View>
               );
-            case "Audio Tapes":
+            case "Audio":
               return (
                 <View style={[styles.page, { width }]}>
-                  <AudioTab refreshing={refreshing} onRefresh={onRefresh} />
+                  <AudioTab {...({ refreshing, onRefresh } as any)} />
                 </View>
               );
-            // case "Categories":
-            //   return (
-            //     <View style={[styles.page, { width }]}>
-            //       <CategoriesTab
-            //         onSelect={(cat) => console.log("Open:", cat.title)}
-            //         refreshControl={
-            //           <RefreshControl
-            //             refreshing={refreshing}
-            //             onRefresh={onRefresh}
-            //             colors={[colors.primary]}
-            //             tintColor={colors.primary}
-            //           />
-            //         }
-            //       />
-            //     </View>
-            //   );
+            case "Edify Broadcast":
+              return (
+                <View style={[styles.page, { width }]}>
+                  <PremiereTab refreshing={refreshing} onRefresh={onRefresh} />
+                </View>
+              );
           }
         }}
         onMomentumScrollEnd={(e) => {

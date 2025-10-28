@@ -71,3 +71,22 @@ export function listenToNotifications() {
     }
   });
 }
+
+export async function scheduleLocalNotification({
+  title,
+  body,
+  data,
+}: {
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+    },
+    trigger: null, // null means immediate
+  });
+}

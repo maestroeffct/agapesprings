@@ -14,8 +14,8 @@ export default function ShareScreen() {
       const result = await Share.share({
         title: "AgapeSprings App",
         message:
-          "🌟 Check out the AgapeSprings International app! Download here: https://play.google.com/store/apps/details?id=com.agapesprings.app",
-        url: "https://www.agapespringsint.com", // iOS uses this too
+          "🌟 Check out the Agapesprings International Ministries app! \n\nDownload here @ https://play.google.com/store/apps/details?id=com.maestro_effect.agapesprings&pcampaignid=web_share",
+        url: "https://play.google.com/store/apps/details?id=com.maestro_effect.agapesprings&pcampaignid=web_share", // iOS uses this too
       });
 
       if (result.action === Share.sharedAction) {

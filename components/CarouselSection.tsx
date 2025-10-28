@@ -57,6 +57,8 @@ export default function CarouselSection() {
             transition={200}
             cachePolicy="disk"
             onLoad={() => handleImageLoaded(index)}
+            placeholder={require("@/assets/images/flow1.png")}
+            placeholderContentFit="cover"
           />
         )}
       />

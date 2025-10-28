@@ -2,14 +2,21 @@ import { useTheme } from "@/store/ThemeContext";
 import { useGetVideosQuery } from "@/store/youtubeApi";
 import { loadCache, saveCache } from "@/utils/cache";
 import { Image as ExpoImage } from "expo-image";
-import React, { useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import Loading from "./Loading";
 import VideoRow from "./VideoRow";
 
 export default function VideosList({
   query = "",
   onSelect,
+  refreshControl,
 }: {
   query?: string;
   onSelect?: (item: any) => void;
@@ -19,6 +26,9 @@ export default function VideosList({
   const [allVideos, setAllVideos] = useState<any[]>([]);
   const [pageToken, setPageToken] = useState<string | undefined>(undefined);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { height } = useWindowDimensions();
 
   const { data, isLoading, isError, isFetching } = useGetVideosQuery(
     { maxResults: 50, pageToken },
@@ -75,30 +85,72 @@ export default function VideosList({
   }
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={items}
       keyExtractor={(item, i) => `${item.id?.videoId ?? i}`}
-      contentContainerStyle={{ paddingVertical: 8 }}
-      renderItem={({ item }) => (
-        <VideoRow
-          item={item}
-          title={item.snippet.title}
-          date={new Date(item.snippet.publishedAt).toLocaleDateString()}
-          thumb={
-            item.snippet.thumbnails?.maxres?.url ||
-            item.snippet.thumbnails?.high?.url ||
-            item.snippet.thumbnails?.medium?.url
-          }
-          menuOpen={openMenuId === item.id?.videoId}
-          onToggleMenu={() =>
-            setOpenMenuId(
-              openMenuId === item.id?.videoId ? null : item.id?.videoId
-            )
-          }
-          closeMenu={() => setOpenMenuId(null)}
-          onPress={() => onSelect?.(item)}
-        />
+      contentContainerStyle={{ paddingVertical: 12 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
+      onScroll={Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: true }
       )}
+      scrollEventThrottle={16}
+      renderItem={({ item, index }) => {
+        const ITEM_HEIGHT = 150; // approximate height per row
+        const inputRange = [
+          -1,
+          0,
+          ITEM_HEIGHT * index,
+          ITEM_HEIGHT * (index + 2),
+        ];
+
+        const scale = scrollY.interpolate({
+          inputRange,
+          outputRange: [1, 1, 1, 0.9],
+          extrapolate: "clamp",
+        });
+
+        const translateY = scrollY.interpolate({
+          inputRange,
+          outputRange: [0, 0, 0, -20],
+          extrapolate: "clamp",
+        });
+
+        const opacity = scrollY.interpolate({
+          inputRange,
+          outputRange: [1, 1, 1, 0.4],
+          extrapolate: "clamp",
+        });
+
+        return (
+          <Animated.View
+            style={{
+              transform: [{ scale }, { translateY }],
+              opacity,
+            }}
+          >
+            <VideoRow
+              item={item}
+              title={item.snippet.title}
+              date={new Date(item.snippet.publishedAt).toLocaleDateString()}
+              thumb={
+                item.snippet.thumbnails?.maxres?.url ||
+                item.snippet.thumbnails?.high?.url ||
+                item.snippet.thumbnails?.medium?.url
+              }
+              menuOpen={openMenuId === item.id?.videoId}
+              onToggleMenu={() =>
+                setOpenMenuId(
+                  openMenuId === item.id?.videoId ? null : item.id?.videoId
+                )
+              }
+              closeMenu={() => setOpenMenuId(null)}
+              onPress={() => onSelect?.(item)}
+            />
+          </Animated.View>
+        );
+      }}
       ItemSeparatorComponent={() => (
         <View
           style={[

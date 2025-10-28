@@ -8,7 +8,7 @@ import {
   ImageBackground as ExpoImageBackground,
 } from "expo-image";
 import { router } from "expo-router";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import DraggableFlatList, {
   RenderItemParams,
@@ -18,16 +18,8 @@ import TrackPlayer from "react-native-track-player";
 export default function QueueScreen() {
   const { colors } = useTheme();
   const { queue, queueIndex, play, setQueue, current } = useAudioPlayer();
+  const STATIC_COVER = require("@/assets/images/aud_banner.jpg");
 
-  // ✅ Cached, memoized artwork
-  const cover = useMemo(() => {
-    if (!current?.thumb) return require("@/assets/images/aud1.png");
-    return typeof current.thumb === "string"
-      ? { uri: current.thumb }
-      : current.thumb;
-  }, [current?.thumb]);
-
-  // ✅ Prefetch queue thumbnails for instant image loads
   useEffect(() => {
     if (queue?.length) {
       queue.forEach((item) => {
@@ -79,7 +71,7 @@ export default function QueueScreen() {
     >
       {/* ✅ Cached blurred artwork background */}
       <ExpoImageBackground
-        source={cover}
+        source={STATIC_COVER}
         blurRadius={4}
         style={StyleSheet.absoluteFill}
         contentFit="cover"

@@ -1,6 +1,7 @@
 import ScreenWrapper from "@/components/ScreenWrapper";
 import TopBar from "@/components/Topbar";
 import { useAudioPlayer } from "@/store/AudioPlayerContext";
+import { useDownloads } from "@/store/download";
 import { useTheme } from "@/store/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
@@ -11,14 +12,18 @@ import {
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Platform,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+
+const STATIC_COVER = require("@/assets/images/aud_banner.jpg");
 
 type PlayMode = "shuffle" | "all" | "repeat";
 
@@ -28,6 +33,27 @@ const fmt = (ms: number) => {
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
+
+// Simple inline progress bar for downloads
+const DownloadProgressBar = ({ value }: { value: number }) => (
+  <View
+    style={{
+      height: 6,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      borderRadius: 3,
+      overflow: "hidden",
+      width: "100%",
+    }}
+  >
+    <View
+      style={{
+        width: `${Math.min(Math.max(value, 0), 1) * 100}%`,
+        height: "100%",
+        backgroundColor: "#fff",
+      }}
+    />
+  </View>
+);
 
 export default function AudioPlayerScreen() {
   const { colors } = useTheme();
@@ -45,15 +71,29 @@ export default function AudioPlayerScreen() {
     skipToPrevious,
   } = useAudioPlayer();
 
-  const [playMode, setPlayMode] = useState<PlayMode>("all");
-  const scale = useRef(new Animated.Value(1)).current;
+  const {
+    downloads,
+    enqueueDownload,
+    isDownloaded,
+    getProgress,
+    removeDownload,
+  } = useDownloads();
 
+  const [playMode, setPlayMode] = useState<PlayMode>("all");
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const scale = useRef(new Animated.Value(1)).current;
+  const hasLyrics = !!current?.lyrics && current?.lyrics.trim().length > 0;
+
+  // 🌀 Handle play mode cycling
   const cyclePlayMode = () =>
     setPlayMode((m) =>
       m === "all" ? "shuffle" : m === "shuffle" ? "repeat" : "all"
     );
 
-  // Auto-restart if repeat mode
+  // 🔁 Auto-repeat
   useEffect(() => {
     if (playMode !== "repeat" || !duration) return;
     const nearEnd = position >= duration - 250;
@@ -62,9 +102,9 @@ export default function AudioPlayerScreen() {
         .then(resume)
         .catch(() => {});
     }
-  }, [position, duration, isPlaying, playMode, seekTo, resume]);
+  }, [position, duration, isPlaying, playMode]);
 
-  // Animate scale on play/pause
+  // 🎬 Animate cover
   useEffect(() => {
     Animated.spring(scale, {
       toValue: isPlaying ? 1 : 0.96,
@@ -73,33 +113,24 @@ export default function AudioPlayerScreen() {
     }).start();
   }, [isPlaying]);
 
-  // Memoize cover, title, and author
+  // 🖼️ Extract metadata
   const { cover, title, author } = useMemo(
     () => ({
-      cover:
-        current?.thumb && typeof current.thumb === "string"
-          ? { uri: current.thumb }
-          : current?.thumb || require("@/assets/images/aud1.png"),
+      cover: STATIC_COVER,
       title: current?.title || "Now Playing",
-      author: current?.author || "Unknown Author",
+      author: current?.author || "Unknown Artist",
     }),
     [current]
   );
 
-  // Prefetch next artwork for instant transitions
-  useEffect(() => {
-    const next = queue[queueIndex + 1];
-    if (next?.thumb) ExpoImage.prefetch(next.thumb);
-  }, [queueIndex, queue]);
-
-  // Slider local state
+  // 🎚️ Local slider sync
   const dragging = useRef(false);
   const [localPos, setLocalPos] = useState(0);
   useEffect(() => {
     if (!dragging.current) setLocalPos(position);
   }, [position]);
 
-  // Sharing handler
+  // 📤 Share
   const onShare = () => {
     const link = current?.downloadUrl || current?.streamUrl || "";
     const text = link ? `${title}\n\n${link}` : title;
@@ -110,34 +141,82 @@ export default function AudioPlayerScreen() {
     ).catch(() => {});
   };
 
+  // 📥 Download logic
+  const isCompleted = isDownloaded(current?.id ?? "");
+  const currentProgress = getProgress(current?.id ?? "") || 0;
+
+  useEffect(() => {
+    if (downloading && currentProgress !== progress) {
+      setProgress(currentProgress);
+    }
+  }, [currentProgress]);
+
+  const handleDownload = async () => {
+    try {
+      if (!current) return;
+
+      if (!current.downloadUrl && !current.streamUrl) {
+        Alert.alert("Unavailable", "This audio cannot be downloaded.");
+        return;
+      }
+
+      if (isCompleted) {
+        Alert.alert(
+          "Already Downloaded",
+          `"${current.title}" is already available offline.`,
+          [
+            {
+              text: "Delete",
+              style: "destructive",
+              onPress: () => removeDownload(current.id),
+            },
+            { text: "OK" },
+          ]
+        );
+        return;
+      }
+
+      const url = current.downloadUrl || current.streamUrl || "";
+      setDownloading(true);
+
+      enqueueDownload(
+        {
+          id: current.id,
+          title: current.title,
+          author: current.author,
+          thumb: current.thumb,
+          type: "audio",
+        },
+        url
+      );
+    } catch (err) {
+      console.error("❌ Download failed:", err);
+      setDownloading(false);
+      Alert.alert("Error", "Failed to download audio.");
+    }
+  };
+
   const prevDisabled = queueIndex <= 0;
   const nextDisabled = queueIndex >= queue.length - 1;
 
   return (
     <ScreenWrapper
-      style={{ backgroundColor: "transparent" }}
+      style={{ backgroundColor: "#B61040" }}
       statusBarColor="transparent"
       barStyle="light-content"
     >
-      {/* Background */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]} />
+      {/* 🔹 Background */}
       <ExpoImageBackground
-        source={cover}
+        source={STATIC_COVER}
         blurRadius={7}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
-        cachePolicy="disk"
-      >
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: "rgba(0,0,0,0.25)" },
-          ]}
-        />
-      </ExpoImageBackground>
+      />
 
-      {/* TopBar */}
+      {/* 🔹 TopBar */}
       <TopBar
-        title="Now Playing"
+        title={showLyrics ? "Lyrics" : "Now Playing"}
         titleColor={colors.white}
         leftIcons={[
           {
@@ -147,44 +226,58 @@ export default function AudioPlayerScreen() {
           },
         ]}
         rightIcons={[
-          { name: "heart-outline", onPress: () => {}, color: colors.white },
-          { name: "share-outline", onPress: onShare, color: colors.white },
+          {
+            name: hasLyrics
+              ? showLyrics
+                ? "musical-notes-outline"
+                : "document-text-outline"
+              : "musical-notes-outline",
+            onPress: () => hasLyrics && setShowLyrics(!showLyrics),
+            color: hasLyrics ? colors.white : "rgba(255,255,255,0.5)",
+          },
         ]}
       />
 
-      {/* Title / Author */}
-      <View style={styles.titleBlock}>
-        <Text style={[styles.title, { color: colors.white }]} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text
-          style={[styles.subtitle, { color: "rgba(255,255,255,0.9)" }]}
-          numberOfLines={1}
+      {/* 🔹 Main Content */}
+      {showLyrics && hasLyrics ? (
+        <ScrollView
+          style={styles.lyricsScroll}
+          contentContainerStyle={{
+            paddingBottom: 120,
+            paddingHorizontal: 20,
+          }}
         >
-          {author}
-        </Text>
-      </View>
+          <Text style={[styles.lyricsText, { color: colors.white }]}>
+            {current?.lyrics}
+          </Text>
+        </ScrollView>
+      ) : (
+        <>
+          <View style={styles.titleBlock}>
+            <Text style={[styles.title, { color: colors.white }]}>{title}</Text>
+            <Text style={[styles.subtitle, { color: "rgba(255,255,255,0.9)" }]}>
+              {author}
+            </Text>
+          </View>
 
-      {/* Artwork */}
-      <View style={styles.artWrap}>
-        <Animated.View style={{ transform: [{ scale }] }}>
-          <ExpoImage
-            source={cover}
-            style={styles.art}
-            contentFit="cover"
-            transition={100}
-            cachePolicy="disk"
-            placeholder={require("@/assets/images/aud1.png")}
-          />
-        </Animated.View>
-      </View>
+          <View style={styles.artWrap}>
+            <Animated.View style={{ transform: [{ scale }] }}>
+              <ExpoImage
+                source={STATIC_COVER}
+                style={styles.art}
+                contentFit="cover"
+              />
+            </Animated.View>
+          </View>
+        </>
+      )}
 
-      {/* Bottom panel */}
+      {/* 🔹 Bottom Controls */}
       <View style={styles.bottomPanelShadowWrap}>
         <View
           style={[styles.bottomPanel, { backgroundColor: "rgba(0,0,0,0.25)" }]}
         >
-          {/* Controls */}
+          {/* Transport Controls */}
           <View style={styles.transportRow}>
             <TouchableOpacity
               style={styles.smlBtn}
@@ -193,7 +286,6 @@ export default function AudioPlayerScreen() {
                   Math.max(0, (dragging.current ? localPos : position) - 15000)
                 )
               }
-              accessibilityLabel="Rewind 15 seconds"
             >
               <Ionicons name="play-back" size={22} color={colors.white} />
             </TouchableOpacity>
@@ -202,7 +294,6 @@ export default function AudioPlayerScreen() {
               style={styles.smlBtn}
               disabled={prevDisabled}
               onPress={skipToPrevious}
-              accessibilityLabel="Previous track"
             >
               <Ionicons
                 name="play-skip-back"
@@ -214,7 +305,6 @@ export default function AudioPlayerScreen() {
             <TouchableOpacity
               style={[styles.playBtn, { backgroundColor: colors.white }]}
               onPress={() => (isPlaying ? pause() : resume())}
-              accessibilityLabel={isPlaying ? "Pause" : "Play"}
             >
               <Ionicons
                 name={isPlaying ? "pause" : "play"}
@@ -227,7 +317,6 @@ export default function AudioPlayerScreen() {
               style={styles.smlBtn}
               disabled={nextDisabled}
               onPress={skipToNext}
-              accessibilityLabel="Next track"
             >
               <Ionicons
                 name="play-skip-forward"
@@ -246,13 +335,12 @@ export default function AudioPlayerScreen() {
                   )
                 )
               }
-              accessibilityLabel="Forward 15 seconds"
             >
               <Ionicons name="play-forward" size={22} color={colors.white} />
             </TouchableOpacity>
           </View>
 
-          {/* Slider */}
+          {/* Progress Bar */}
           <View style={{ marginTop: 14 }}>
             <Slider
               style={{ width: "100%", height: 38 }}
@@ -270,20 +358,29 @@ export default function AudioPlayerScreen() {
               }}
             />
             <View style={styles.timeRow}>
-              <Text style={[{ color: colors.white }]}>{fmt(localPos)}</Text>
-              <Text style={[{ color: colors.white }]}>{fmt(duration)}</Text>
+              <Text style={{ color: colors.white }}>{fmt(localPos)}</Text>
+              <Text style={{ color: colors.white }}>{fmt(duration)}</Text>
             </View>
           </View>
 
-          {/* Queue Info */}
+          {/* Download Progress */}
+          {(downloading || currentProgress > 0) && (
+            <View style={{ marginTop: 10 }}>
+              <DownloadProgressBar value={currentProgress} />
+              <Text style={styles.progressText}>
+                {Math.floor(currentProgress * 100)}%
+              </Text>
+            </View>
+          )}
+
+          {/* Info + Bottom Icons */}
           <Text style={[styles.indexText, { color: colors.white }]}>
             {queueIndex + 1} / {queue.length || 1}
           </Text>
           <Text style={[styles.sourceText, { color: "rgba(255,255,255,0.9)" }]}>
-            From All Sermons
+            {current?.sourceLabel ?? "From Playlist"}
           </Text>
 
-          {/* Bottom Icons */}
           <View style={styles.bottomIcons}>
             <TouchableOpacity onPress={cyclePlayMode} style={{ padding: 8 }}>
               <Ionicons
@@ -301,7 +398,24 @@ export default function AudioPlayerScreen() {
               />
             </TouchableOpacity>
 
-            <Ionicons name="download-outline" size={28} color={colors.white} />
+            {/* <TouchableOpacity onPress={handleDownload} disabled={downloading}>
+              {downloading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : isCompleted ? (
+                <Ionicons
+                  name="checkmark-done"
+                  size={28}
+                  color={colors.white}
+                />
+              ) : (
+                <Ionicons
+                  name="download-outline"
+                  size={28}
+                  color={colors.white}
+                />
+              )}
+            </TouchableOpacity> */}
+
             <TouchableOpacity
               onPress={() => router.push("/queue")}
               style={{ padding: 8 }}
@@ -317,13 +431,13 @@ export default function AudioPlayerScreen() {
 
 const styles = StyleSheet.create({
   titleBlock: { alignItems: "center", paddingHorizontal: 18, marginTop: 6 },
-  title: { fontSize: 16, fontWeight: "700", textAlign: "center" },
-  subtitle: { textAlign: "center", marginTop: 4, fontSize: 12 },
-  artWrap: { alignItems: "center", marginTop: 12 },
-  art: { width: 260, height: 260, borderRadius: 14 },
+  title: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  subtitle: { textAlign: "center", marginTop: 4, fontSize: 13 },
+  artWrap: { alignItems: "center", marginTop: 20 },
+  art: { width: 270, height: 270, borderRadius: 16 },
   bottomPanelShadowWrap: {
     flex: 1,
-    marginTop: 14,
+    marginTop: 16,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 14,
@@ -355,6 +469,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 6,
   },
+  progressText: {
+    color: "#fff",
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 4,
+  },
   indexText: { textAlign: "center", marginTop: 8 },
   sourceText: { textAlign: "center", marginTop: 6 },
   bottomIcons: {
@@ -363,4 +483,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
   },
+  lyricsScroll: { flex: 1, marginTop: 10 },
+  lyricsText: { fontSize: 16, textAlign: "center", fontWeight: "400" },
 });

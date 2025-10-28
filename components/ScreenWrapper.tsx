@@ -21,7 +21,7 @@ export default function ScreenWrapper({
   barStyle,
 }: Props) {
   const { colors, isDark } = useTheme();
-  const padTop = noPadding ? 0 : Platform.OS === "ios" ? height * 0.06 : 40;
+  const padTop = noPadding ? 0 : Platform.OS === "ios" ? height * 0.06 : 50;
 
   const _barStyle = barStyle ?? (isDark ? "light-content" : "dark-content");
 

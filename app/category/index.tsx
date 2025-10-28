@@ -27,7 +27,7 @@ export default function CategoryRoute() {
     title: parsed.title ?? "Category",
     subtitle: parsed.subtitle ?? "Category Sermons",
     count: parsed.count ?? undefined,
-    image: parsed.image ?? require("@/assets/images/aud1.png"),
+    image: parsed.image ?? require("@/assets/images/aud_banner.jpg"),
     tags: parsed.tags,
     items: parsed.items,
   };

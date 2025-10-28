@@ -220,4 +220,15 @@ export type AudioItem = {
   downloadUrl?: string;
   streamUrl?: string;
   author?: string;
+  lyrics?: string; // ✅ Add this
 };
+
+export interface OneSound {
+  id: number;
+  title: string;
+  artist?: string;
+  lyrics?: string;
+  audioUrl: string;
+  coverUrl?: string;
+  createdAt?: string;
+}

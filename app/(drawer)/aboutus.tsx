@@ -6,7 +6,7 @@ import { useTheme } from "@/store/ThemeContext";
 import { getCachedPage, urls } from "@/utils/prefetchWebPages";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 
 export default function AboutUsScreen() {
@@ -15,14 +15,14 @@ export default function AboutUsScreen() {
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
   const [cachedHtml, setCachedHtml] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [webKey, setWebKey] = useState(0);
 
   const handleProgress = (event: any) => {
     const value = event.nativeEvent.progress;
     setProgress(value);
     setVisible(true);
-    if (value === 1) {
-      setTimeout(() => setVisible(false), 400);
-    }
+    if (value === 1) setTimeout(() => setVisible(false), 400);
   };
 
   useEffect(() => {
@@ -31,6 +31,12 @@ export default function AboutUsScreen() {
       if (html) setCachedHtml(html);
     })();
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setWebKey((prev) => prev + 1); // reload WebView
+    setRefreshing(false);
+  };
 
   return (
     <ScreenWrapper
@@ -52,28 +58,40 @@ export default function AboutUsScreen() {
         />
       </View>
 
-      <View style={{ flex: 1 }}>
-        <WebView
-          source={
-            cachedHtml
-              ? { html: cachedHtml, baseUrl: urls.about } // 👈 fix
-              : { uri: urls.about }
-          }
-          style={styles.webview}
-          onLoadProgress={handleProgress}
-        />
-        {visible && (
-          <View style={styles.loadingOverlay}>
-            <Loading size="large" />
-          </View>
-        )}
-      </View>
+      <ScrollView
+        contentContainerStyle={{ flex: 1 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <View style={{ flex: 1 }}>
+          <WebView
+            key={webKey}
+            source={
+              cachedHtml
+                ? { html: cachedHtml, baseUrl: urls.about }
+                : { uri: urls.about }
+            }
+            style={styles.webview}
+            onLoadProgress={handleProgress}
+          />
+          {visible && (
+            <View style={styles.loadingOverlay}>
+              <Loading size="large" />
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  webview: { flex: 1 },
+  webview: { flex: 1, minHeight: 800 },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",

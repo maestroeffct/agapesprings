@@ -74,6 +74,7 @@ export const lightColors = {
   card: "#f9fafb",
   white: "#ffffff",
   border: "#e5e7eb",
+  secondary: "#edd925ff",
 };
 
 export const darkColors = {

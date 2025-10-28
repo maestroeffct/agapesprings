@@ -13,6 +13,8 @@ export type AudioItem = {
   streamUrl?: string;
   downloadUrl?: string;
   thumb?: any;
+  lyrics?: string; // ✅ Add this
+  sourceLabel?: string; // e.g., "YouTube", "SoundCloud"
 };
 
 type PlayerCtx = {
@@ -75,10 +77,10 @@ export function AudioPlayerProvider({
     opts?: { smooth?: boolean }
   ) => {
     try {
-      const activeId = (await TrackPlayer.getActiveTrack())?.id?.toString?.();
+      const activeTrack = await TrackPlayer.getActiveTrack();
+      const activeId = activeTrack?.id?.toString?.();
       const sameTrack = activeId === item.id.toString();
 
-      // No need to re-add if already playing this item
       if (sameTrack) {
         await TrackPlayer.play();
         return;
@@ -88,38 +90,33 @@ export function AudioPlayerProvider({
         q.length === queue.length &&
         q.every((track, i) => track.id === queue[i]?.id);
 
-      if (!sameQueue) {
-        await TrackPlayer.reset();
-        const tracks = q.map((t) => ({
-          id: t.id.toString(),
-          url: t.streamUrl || t.downloadUrl || "",
-          title: t.title,
-          artist: t.author || "Unknown Artist",
-          artwork: t.thumb,
-        }));
-        await TrackPlayer.add(tracks);
-        setQueue(q);
-      } else if (opts?.smooth) {
-        // Stop but don't reset, for smooth transition
-        await TrackPlayer.stop();
-      } else {
-        await TrackPlayer.reset();
-        const tracks = q.map((t) => ({
-          id: t.id.toString(),
-          url: t.streamUrl || t.downloadUrl || "",
-          title: t.title,
-          artist: t.author || "Unknown Artist",
-          artwork: t.thumb,
-        }));
-        await TrackPlayer.add(tracks);
-      }
-
       const idx = q.findIndex((x) => x.id === item.id) || 0;
+
+      // 🧠 Instantly reflect new track in UI
+      setCurrent(item);
+      setQueue(q);
+      setQueueIndex(idx);
+
+      // 🕐 Instead of resetting immediately, fade out current audio first
+      if (isPlaying) await TrackPlayer.pause();
+
+      // 🧩 Delay a few ms to let UI settle — prevents flicker
+      await new Promise((res) => setTimeout(res, 100));
+
+      // 🧱 Now safely reset and prepare
+      await TrackPlayer.reset();
+
+      const tracks = q.map((t) => ({
+        id: t.id.toString(),
+        url: t.streamUrl || t.downloadUrl || "",
+        title: t.title,
+        artist: t.author || "Unknown Artist",
+        artwork: t.thumb,
+      }));
+      await TrackPlayer.add(tracks);
+
       await TrackPlayer.skip(idx);
       await TrackPlayer.play();
-
-      setQueueIndex(idx);
-      setCurrent(item);
     } catch (e) {
       console.warn("Error in play():", e);
     }
