@@ -101,7 +101,7 @@ export default function ThemePickerModal({ visible, onClose }: Props) {
       >
         <View style={[styles.box, { backgroundColor: colors.card }]}>
           <Text style={[styles.title, { color: colors.text }]}>
-            Select Theme
+            Select Preferred Theme
           </Text>
 
           {options.map((opt) => (

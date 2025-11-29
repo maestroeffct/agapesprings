@@ -232,3 +232,12 @@ export interface OneSound {
   coverUrl?: string;
   createdAt?: string;
 }
+
+export interface Location {
+  id?: number;
+  name: string;
+  address: string;
+  phone?: string;
+  mapUrl?: string;
+  createdAt?: string;
+}

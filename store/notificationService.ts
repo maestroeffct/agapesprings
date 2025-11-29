@@ -2,6 +2,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { Platform } from "react-native";
+import { registerPushToken } from "@/api/notifications";
 
 export async function registerForPushNotificationsAsync() {
   let token;
@@ -23,6 +24,11 @@ export async function registerForPushNotificationsAsync() {
 
     token = (await Notifications.getExpoPushTokenAsync()).data;
     console.log("Expo Push Token:", token); // 👈 Copy this
+
+    // Send to backend for server-side pushes
+    registerPushToken(token, Platform.OS).catch((err) =>
+      console.error("Failed to register push token with API:", err)
+    );
   } else {
     alert("Must use physical device for Push Notifications");
   }

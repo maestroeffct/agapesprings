@@ -11,7 +11,7 @@ import React, {
 import { Appearance, ColorSchemeName } from "react-native";
 
 type ThemeName = "light" | "dark" | "system";
-type ThemeColors = typeof lightColors;
+type ThemeColors = Record<string, string>;
 
 type Ctx = {
   themeName: ThemeName;
@@ -26,7 +26,7 @@ const ThemeCtx = createContext<Ctx | null>(null);
 const KEY = "app.theme.v1";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeName, setThemeName] = useState<ThemeName>("light"); 
+  const [themeName, setThemeName] = useState<ThemeName>("light");
   const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
     Appearance.getColorScheme()
   );
@@ -54,8 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(KEY, name);
   };
 
-  const toggleTheme = async () =>
-    setTheme(isDark ? "light" : "dark");
+  const toggleTheme = async () => setTheme(isDark ? "light" : "dark");
 
   const value = useMemo(
     () => ({ themeName, systemScheme, colors, isDark, setTheme, toggleTheme }),

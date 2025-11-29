@@ -1,9 +1,12 @@
 import ScreenWrapper from "@/components/ScreenWrapper";
 import TopBar from "@/components/Topbar";
+import { getLocations } from "@/api/locations";
+import { Location } from "@/types";
 import { useTheme } from "@/store/ThemeContext";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Linking,
   StyleSheet,
@@ -11,13 +14,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 
-type Location = {
-  name: string;
-  address: string;
-  phone: string;
-};
-
-const LOCATIONS: Location[] = [
+const STATIC_LOCATIONS: Location[] = [
   {
     name: "ALAGBAKA (HQTR)",
     address: "THE DOME, IGBATORO ROAD, NEAR SHOPRITE, AKURE",
@@ -99,18 +96,33 @@ const LOCATIONS: Location[] = [
 export default function Locator() {
   const { colors } = useTheme();
   const router = useRouter();
+  const [locations, setLocations] = useState<Location[]>(STATIC_LOCATIONS);
+  const [loading, setLoading] = useState(true);
 
-  const openMap = (address: string) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-      address
-    )}`;
+  useEffect(() => {
+    (async () => {
+      const data = await getLocations();
+      if (data && data.length > 0) {
+        setLocations(data);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const openMap = (location: Location) => {
+    const target =
+      location.mapUrl ||
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        location.address
+      )}`;
+    const url = target.trim();
     Linking.openURL(url);
   };
 
   const renderItem = ({ item }: { item: Location }) => (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: colors.card }]}
-      onPress={() => openMap(item.address)}
+      onPress={() => openMap(item)}
       activeOpacity={0.8}
     >
       <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
@@ -137,10 +149,28 @@ export default function Locator() {
       />
 
       <FlatList
-        data={LOCATIONS}
+        data={locations}
         renderItem={renderItem}
-        keyExtractor={(item, idx) => idx.toString()}
+        keyExtractor={(item, idx) =>
+          item.id ? String(item.id) : idx.toString()
+        }
         contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={colors.primary} />
+          ) : (
+            <Text style={[styles.empty, { color: colors.subtitle }]}>
+              No locations found.
+            </Text>
+          )
+        }
+        refreshing={loading}
+        onRefresh={async () => {
+          setLoading(true);
+          const data = await getLocations();
+          setLocations(data.length ? data : STATIC_LOCATIONS);
+          setLoading(false);
+        }}
       />
     </ScreenWrapper>
   );
@@ -169,4 +199,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  empty: { textAlign: "center", marginTop: 32, fontSize: 14 },
 });

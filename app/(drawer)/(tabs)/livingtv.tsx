@@ -36,6 +36,8 @@ type Song = {
 };
 
 export default function OneSoundScreen() {
+  const normalizeTitle = (title?: string) => title?.trim() || "";
+
   const { colors, isDark } = useTheme();
   const { play, current, isPlaying } = useAudioPlayer();
   const [songs, setSongs] = useState<Song[]>([]);
@@ -67,7 +69,9 @@ export default function OneSoundScreen() {
       setRefreshing(true);
       const data = await getOneSoundFiles(1, 50);
       const sorted = (data || []).sort((a, b) =>
-        a.title?.toLowerCase().localeCompare(b.title?.toLowerCase())
+        normalizeTitle(a.title)
+          .toLowerCase()
+          .localeCompare(normalizeTitle(b.title).toLowerCase())
       );
       setSongs(sorted);
       await loadDownloads();
@@ -89,12 +93,14 @@ export default function OneSoundScreen() {
     const list = q
       ? songs.filter(
           (s) =>
-            s.title?.toLowerCase().includes(q) ||
+            normalizeTitle(s.title).toLowerCase().includes(q) ||
             s.artist?.toLowerCase().includes(q)
         )
       : songs;
     return [...list].sort((a, b) =>
-      a.title?.toLowerCase().localeCompare(b.title?.toLowerCase())
+      normalizeTitle(a.title)
+        .toLowerCase()
+        .localeCompare(normalizeTitle(b.title).toLowerCase())
     );
   }, [songs, query]);
 
@@ -134,7 +140,6 @@ export default function OneSoundScreen() {
         return;
       }
 
-      // ✅ Safe app-owned folder (visible via Files app)
       let folderUri =
         Platform.OS === "android"
           ? `${FileSystem.documentDirectory}Music/OneSound/`
@@ -145,7 +150,9 @@ export default function OneSoundScreen() {
         await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
       }
 
-      const cleanTitle = song.title.replace(/[^\w\s]/g, "_");
+      const safeTitle = normalizeTitle(song.title) || `song-${song.id}`;
+      const cleanTitle =
+        safeTitle.replace(/[^\w\s]/g, "_") || `song_${song.id}`;
       const fileUri = folderUri + `${cleanTitle}.mp3`;
 
       const downloadResumable = FileSystem.createDownloadResumable(

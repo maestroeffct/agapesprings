@@ -15,3 +15,16 @@ export async function getNotifications(page = 1, size = 20) {
   const res = await apiClient.get(`notifications/files/${page}/${size}`);
   return res.data?.data || [];
 }
+
+export async function registerPushToken(
+  token: string,
+  platform?: string
+): Promise<boolean> {
+  try {
+    await apiClient.post("notifications/registerToken", { token, platform });
+    return true;
+  } catch (err) {
+    console.error("Failed to register push token:", err);
+    return false;
+  }
+}

@@ -20,7 +20,8 @@
         ],
         "NSPhotoLibraryAddUsageDescription": "This app saves downloaded songs to your media library.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your media library to store downloaded songs.",
-        "NSMusicUsageDescription": "This app lets you download and manage music files from OneSound."
+        "NSMusicUsageDescription": "This app lets you download and manage music files from OneSound.",
+        "NSDocumentsFolderUsageDescription": "Allow Agapesprings to store downloaded music files."
       },
       "bundleIdentifier": "com.maestro-effect.agapesprings"
     },

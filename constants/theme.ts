@@ -85,4 +85,5 @@ export const darkColors = {
   card: "#1f2937",
   white: "#ffffff",
   border: "#374151",
+  secondary: "#facc15",
 };
