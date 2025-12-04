@@ -30,6 +30,7 @@
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
+      "googleServicesFile": "./android/app/google-services.json",
       "edgeToEdgeEnabled": false,
       "package": "com.maestro_effect.agapesprings",
       "permissions": [
@@ -48,6 +49,10 @@
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/logo.png"
+    },
+    "notification": {
+      "icon": "./assets/images/notification.png",
+      "androidCollapsedTitle": "Agapesprings"
     },
     "plugins": [
       "expo-router",

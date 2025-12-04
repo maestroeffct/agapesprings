@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375267737218",
+    "project_id": "agapesprings001",
+    "storage_bucket": "agapesprings001.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375267737218:android:2a1fbcb86e61537a89be9b",
+        "android_client_info": {
+          "package_name": "com.maestro_effect.agapesprings"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrutTVdR2BCymrL5H-ZYrIlleAX98b0kU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

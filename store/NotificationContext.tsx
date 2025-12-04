@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/api/client";
 import { getNotifications, NotificationItem } from "@/api/notifications";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
@@ -32,6 +33,7 @@ const NotificationBanner = ({
   <Animated.View
     entering={FadeInDown.springify().damping(20)}
     exiting={FadeOutUp.duration(200)}
+    pointerEvents="box-none"
     style={{
       position: "absolute",
       top: 50,
@@ -100,13 +102,17 @@ export const NotificationProvider = ({
     };
 
     loadInitial();
+    const socketUrl = process.env.EXPO_PUBLIC_API_GATEWAY || API_BASE_URL || "";
 
-    const socket = io(process.env.EXPO_PUBLIC_API_GATEWAY!, {
+    const socket = io(socketUrl, {
       transports: ["websocket"],
     });
 
     socket.on("connect", () => {
       console.log("🔌 Connected to notifications socket:", socket.id);
+    });
+    socket.on("connect_error", (err) => {
+      console.error("⚠️ Socket connection error:", err);
     });
 
     socket.on("recentActivities", (payload: any) => {
@@ -135,16 +141,7 @@ export const NotificationProvider = ({
         });
         setTimeout(() => setBanner(null), 5000);
 
-        // ✅ System push
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: payload.payload?.title ?? "New Notification",
-            body: payload.payload?.message ?? "",
-            sound: "default",
-            data: { screen: "notifications" },
-          },
-          trigger: null,
-        });
+        // Rely on server push for system tray; in-app banner already shown
       }
     });
 

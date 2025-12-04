@@ -1,7 +1,9 @@
 import axios from "axios";
 
+export const API_BASE_URL = "https://api.agapespringsint.com";
+
 const client = axios.create({
-  baseURL: "https://api.agapespringsint.com",
+  baseURL: API_BASE_URL,
   headers: {
     Accept: "application/json",
   },

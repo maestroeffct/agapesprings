@@ -1,4 +1,5 @@
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { Platform } from "react-native";
@@ -22,7 +23,16 @@ export async function registerForPushNotificationsAsync() {
       return;
     }
 
-    token = (await Notifications.getExpoPushTokenAsync()).data;
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ||
+      Constants?.easConfig?.projectId ||
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+
+    token = (
+      await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined
+      )
+    ).data;
     console.log("Expo Push Token:", token); // 👈 Copy this
 
     // Send to backend for server-side pushes
@@ -34,11 +44,14 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (Platform.OS === "android") {
-    Notifications.setNotificationChannelAsync("default", {
+    await Notifications.setNotificationChannelAsync("default", {
       name: "default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C",
+      sound: "notification_sound", // raw/notification_sound.wav
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
   }
 
