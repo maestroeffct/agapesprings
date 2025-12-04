@@ -36,6 +36,26 @@ export default function NotificationsScreen() {
   const { colors, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
+  const goToTarget = (target?: string) => {
+    if (!target) {
+      router.push("/notifications");
+      return;
+    }
+    const route =
+      target === "devotional"
+        ? "/(drawer)/(tabs)/devotional"
+        : target === "onesound"
+        ? "/(drawer)/(tabs)/livingtv"
+        : target === "audioSermon"
+        ? "/(drawer)/(tabs)/livingwaters"
+        : target === "location"
+        ? "/(drawer)/locator"
+        : target === "carousel"
+        ? "/"
+        : "/notifications";
+    router.push(route as any);
+  };
+
   const onRefresh = async () => {
     try {
       setRefreshing(true);
@@ -95,6 +115,7 @@ export default function NotificationsScreen() {
                 { borderBottomColor: colors.border || colors.subtitle },
               ]}
               activeOpacity={0.8}
+              onPress={() => goToTarget(item.targetUrl)}
             >
               <Image
                 source={

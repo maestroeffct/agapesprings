@@ -161,7 +161,9 @@ export const NotificationProvider = ({
         <NotificationBanner
           title={banner.title}
           message={banner.message}
-          onPress={() => setBanner(null)}
+          onPress={() => {
+            setBanner(null);
+          }}
         />
       )}
     </NotificationContext.Provider>

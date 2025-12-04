@@ -81,13 +81,25 @@ export function listenToNotifications() {
   // App opened/tapped from system tray
   Notifications.addNotificationResponseReceivedListener((response) => {
     console.log("👉 Notification tapped:", response);
-    const screen = response.notification.request.content.data?.screen;
+    const data = response.notification.request.content.data || {};
+    const screen = data?.screen || data?.targetUrl;
 
-    if (screen === "audio-player") {
-      router.push("/audio-player");
-    } else if (screen === "notifications") {
-      router.push("/notifications");
-    }
+    const route =
+      screen === "devotional"
+        ? "/(drawer)/(tabs)/devotional"
+        : screen === "onesound"
+        ? "/(drawer)/(tabs)/livingtv"
+        : screen === "audioSermon"
+        ? "/(drawer)/(tabs)/livingwaters"
+        : screen === "location"
+        ? "/(drawer)/locator"
+        : screen === "carousel"
+        ? "/"
+        : screen === "audio-player"
+        ? "/audio-player"
+        : "/notifications";
+
+    router.push(route as any);
   });
 }
 
