@@ -133,7 +133,7 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
       {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.subtitle }]}>
         <Text style={[styles.version, { color: colors.subtitle }]}>
-          Version 1.0.0
+          Version 1.2.0
         </Text>
       </View>
     </DrawerContentScrollView>
