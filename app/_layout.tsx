@@ -8,6 +8,7 @@ import { DevotionalFavesProvider } from "@/store/DevotionalFavesContext";
 import { NotificationProvider } from "@/store/NotificationContext";
 import { ThemeProvider } from "@/store/ThemeContext";
 import { VideoProvider } from "@/store/VideoContext";
+import { useMinimumVersion } from "@/store/useMinimumVersion";
 import {
   listenToNotifications,
   registerForPushNotificationsAsync,
@@ -35,6 +36,7 @@ TrackPlayer.registerPlaybackService(() => service);
 export default function RootLayout() {
   const router = useRouter();
   const [ready, setReady] = useState(false); // 👈 Wait flag
+  const { outdated, storeUrls } = useMinimumVersion();
 
   useSocketNotifications();
 
@@ -132,6 +134,39 @@ export default function RootLayout() {
 
   // ✅ Prevent rendering until deep link check completes
   if (!ready) return null;
+  if (outdated) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <ScreenWrapper style={{ alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
+              Update required
+            </Text>
+            <Text style={{ textAlign: "center", paddingHorizontal: 24, marginBottom: 16 }}>
+              A newer version of the app is available. Please update to continue.
+            </Text>
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL(
+                  Platform.OS === "ios"
+                    ? storeUrls?.ios || "https://apps.apple.com"
+                    : storeUrls?.android || "https://play.google.com"
+                )
+              }
+              style={{
+                backgroundColor: "#B61040",
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Update</Text>
+            </TouchableOpacity>
+          </ScreenWrapper>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
